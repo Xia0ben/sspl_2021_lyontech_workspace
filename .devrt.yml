@@ -1,4 +1,4 @@
 simulations:
-  - name: wrschallenge
+  - name: challenge
     type: challenge
-    to: wrs2020-robocup
+    to: robocup-at-home-2021-sspl
