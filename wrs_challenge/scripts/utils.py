@@ -13,113 +13,264 @@ import subprocess
 import tf
 import tf2_ros
 import time
-import json
-import threading
-from sklearn.cluster import DBSCAN
-
 
 from geometry_msgs.msg import PoseStamped, Quaternion, TransformStamped, Twist
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseActionGoal
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from sensor_msgs.msg import LaserScan, PointCloud2
-from std_msgs.msg import Header, String
 
 
-from rospy_message_converter import message_converter
-
-
+# 速度指令のパブリッシャーを作成
 base_vel_pub = rospy.Publisher('/hsrb/command_velocity', Twist, queue_size=1)
 
 
-navclient = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
-
-
-arm = moveit_commander.MoveGroupCommander('arm')
-
-
-gripper = moveit_commander.MoveGroupCommander("gripper")
-
-
-head = moveit_commander.MoveGroupCommander("head")
-
-
-base = moveit_commander.MoveGroupCommander("base")
-base.allow_replanning(True)
-
-
-tf_listener = tf.TransformListener()
-
-
 def move_base_vel(vx, vy, vw):
+    u"""台車を速度制御する関数
+
+    引数:
+        vx (float): 直進方向の速度指令値 [m/s]（前進が正、後進が負）
+        vy (float): 横方向の速度指令値 [m/s]（左が正、右が負）
+        vw (float): 回転方向の速度指令値 [deg/s]（左回転が正、右回転が負）
+
+    """
+
+    # 速度指令値をセットします
     twist = Twist()
     twist.linear.x = vx
     twist.linear.y = vy
-    twist.angular.z = math.radians(vw)
-    base_vel_pub.publish(twist)
-
-
-def move_base_actual_goal(goal):
-    navclient.send_goal(goal)
-    navclient.wait_for_result()
-    state = navclient.get_state()
-    return True if state == 3 else False
+    twist.angular.z = vw / 180.0 * math.pi  # 「度」から「ラジアン」に変換します
+    base_vel_pub.publish(twist)  # 速度指令をパブリッシュします
 
 
 def get_current_time_sec():
+    u"""現在時刻を返す関数
+
+    戻り値:
+        現在時刻 [s]
+
+    """
     return rospy.Time.now().to_sec()
 
 
+class Laser():
+    u"""レーザ情報を扱うクラス"""
+
+    def __init__(self):
+        # レーザースキャンのサブスクライバのコールバックに_laser_cbメソッドを登録
+        self._laser_sub = rospy.Subscriber('/hsrb/base_scan',
+                                           LaserScan, self._laser_cb)
+        self._scan_data = None
+
+    def _laser_cb(self, msg):
+        # レーザスキャンのコールバック関数
+        self._scan_data = msg
+
+    def get_data(self):
+        u"""レーザの値を取得する関数"""
+        return self._scan_data
+
+
 def quaternion_from_euler(roll, pitch, yaw):
-    q = tf.transformations.quaternion_from_euler(
-        math.radians(roll), math.radians(pitch), math.radians(yaw), 'rxyz'
-    )
+    u"""オイラー角からクオータニオンに変換する関数
+
+    引数：
+        roll (float): 入力roll値 [deg]
+        pitch (float): 入力pitch値 [deg]
+        yaw (float): 入力yaw値 [deg]
+
+    返り値:
+        ロール、ピッチ、ヨーの順番で回転した場合のクオータニオン
+
+    """
+
+    # ロール、ピッチ、ヨーの順番で回転
+    q = tf.transformations.quaternion_from_euler(roll / 180.0 * math.pi,
+                                                 pitch / 180.0 * math.pi,
+                                                 yaw / 180.0 * math.pi, 'rxyz')
     return Quaternion(q[0], q[1], q[2], q[3])
 
 
+# 自律移動のゴールを送信するクライアントを作成
+navclient = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
+
+
 def move_base_goal(x, y, theta):
+    u"""台車の自律移動のゴールを指定する関数
+
+    引数：
+        x (float): 目標のx値 [m]
+        y (float): 目標のy値 [m]
+        theta (float): 目標の回転角度 [deg]
+
+    返り値:
+        ゴールに到達したらTrue, そうでなければFalse
+
+    """
+
     goal = MoveBaseGoal()
 
+    # "map"座標を基準座標に指定
     goal.target_pose.header.frame_id = "map"
 
+    # ゴールのx,y座標をセットします
     goal.target_pose.pose.position.x = x
     goal.target_pose.pose.position.y = y
 
+    # 角度はクオータニオンという形式で与えます。そのため、オイラー角からクオータニオンに変換します
     goal.target_pose.pose.orientation = quaternion_from_euler(0, 0, theta)
 
+    # ゴールを送信
     navclient.send_goal(goal)
     navclient.wait_for_result()
     state = navclient.get_state()
-
+    # 成功すると、3が返ってくる
+    # http://docs.ros.org/fuerte/api/actionlib_msgs/html/msg/GoalStatus.html
     return True if state == 3 else False
 
 
-def get_diff_between(target_frame, source_frame):
-    tf_listener.waitForTransform(target_frame, source_frame, rospy.Time(0),rospy.Duration(4.0))
-    transform = tf_listener.lookupTransform(target_frame, source_frame, rospy.Time(0))
-    return transform[0][0], transform[0][1]
+
+def get_relative_coordinate(parent, child):
+    u"""相対座標を取得する関数
+
+    引数：
+        parent (str): 親の座標系
+        child (str): 子の座標系
+
+    """
+
+    tfBuffer = tf2_ros.Buffer()
+    listener = tf2_ros.TransformListener(tfBuffer)
+
+    trans = TransformStamped()
+    while not rospy.is_shutdown():
+        try:
+            # 4秒待機して各tfが存在すれば相対関係をセット
+            trans = tfBuffer.lookup_transform(parent, child,
+                                              rospy.Time().now(),
+                                              rospy.Duration(4.0))
+            break
+        except (tf2_ros.ExtrapolationException):
+            pass
+
+    return trans.transform
+
+
+# moveitでの制御対象として全身制御を指定
+whole_body = moveit_commander.MoveGroupCommander("whole_body_light")
+# whole_body = moveit_commander.MoveGroupCommander("whole_body_weighted")
+whole_body.allow_replanning(True)
+whole_body.set_workspace([-3.0, -3.0, 3.0, 3.0])
+
+
+def move_wholebody_ik(x, y, z, roll, pitch, yaw):
+    u"""ロボットを全身の逆運動学で制御する関数
+
+    引数：
+        x (float): エンドエフェクタの目標x値 [m]
+        y (float): エンドエフェクタの目標y値 [m]
+        z (float): エンドエフェクタの目標z値 [m]
+        roll (float): エンドエフェクタの目標roll値 [deg]
+        pitch (float): エンドエフェクタの目標pitch値 [deg]
+        yaw (float): エンドエフェクタの目標yaw値 [deg]
+
+    返り値:
+        正しく動作すればTrue, そうでなければFalse
+
+    """
+
+    p = PoseStamped()
+
+    # "map"座標を基準座標に指定
+    p.header.frame_id = "/map"
+
+    # エンドエフェクタの目標位置姿勢のx,y,z座標をセットします
+    p.pose.position.x = x
+    p.pose.position.y = y
+    p.pose.position.z = z
+
+    # オイラー角をクオータニオンに変換します
+    p.pose.orientation = quaternion_from_euler(roll, pitch, yaw)
+
+    # 目標位置姿勢をセット
+    whole_body.set_pose_target(p)
+    return whole_body.go()
+
+
+# moveitでの制御対象としてアームを指定
+arm = moveit_commander.MoveGroupCommander('arm')
 
 
 def move_arm_neutral():
+    u"""ロボットをニュートラルの姿勢に移動
+
+    返り値:
+        正しく動作すればTrue, そうでなければFalse
+
+    """
+
     arm.set_named_target('neutral')
     return arm.go()
 
 
 def move_arm_init():
+    u"""ロボットを初期姿勢に移動
+
+    返り値:
+        正しく動作すればTrue, そうでなければFalse
+
+    """
+
     arm.set_named_target('go')
     return arm.go()
 
 
+# moveitでの制御対象としてハンドを指定
+gripper = moveit_commander.MoveGroupCommander("gripper")
+
+
 def move_hand(v):
+    u"""ハンドを制御
+
+    引数:
+        v (float): ハンドの開き具合 (0：閉じる、1:開く)
+
+    返り値:
+        正しく動作すればTrue, そうでなければFalse
+
+    """
+
     gripper.set_joint_value_target("hand_motor_joint", v)
     success = gripper.go()
+    rospy.sleep(6)
     return success
 
 
+# moveitでの制御対象として頭部を指定
+head = moveit_commander.MoveGroupCommander("head")
+
+
 def move_head_tilt(v):
+    u"""ハンドを制御
+
+    引数:
+        v (float): 頭部の入力チルト角度 (マイナス:下向き、プラス:上向き)
+
+    返り値:
+        正しく動作すればTrue, そうでなければFalse
+
+    """
+
     head.set_joint_value_target("head_tilt_joint", v)
     return head.go()
 
 
 def get_object_dict():
+    u"""Gazeboに出現させる物体の辞書を返す関数
+
+    返り値:
+        物体の辞書
+
+    """
+
     object_dict = {}
     paths = glob.glob("/opt/ros/melodic/share/tmc_wrs_gazebo_worlds/models/ycb*")
     for path in paths:
@@ -130,6 +281,13 @@ def get_object_dict():
 
 
 def get_object_list():
+    u"""Gazeboに出現させる物体のリストを返す関数
+
+    返り値:
+        物体のリスト
+
+    """
+
     object_list = get_object_dict().values()
     object_list.sort()
     for i in range(len(object_list)):
@@ -139,6 +297,8 @@ def get_object_list():
 
 
 def put_object(name, x, y, z):
+    u"""Gazeboに物体を出現させる関数"""
+
     cmd = "rosrun gazebo_ros spawn_model -database " \
           + str(get_object_dict()[name]) \
           + " -sdf -model " + str(name) \
@@ -149,177 +309,99 @@ def put_object(name, x, y, z):
 
 
 def delete_object(name):
+    u"""Gazeboの物体を消す関数
+
+    引数:
+        name (str): 物体の名前
+
+    """
+
     cmd = ['rosservice', 'call', 'gazebo/delete_model',
            '{model_name: ' + str(name) + '}']
     subprocess.call(cmd)
 
 
-class NavGoalToJsonFileSaver:
-    def __init__(self, filepath="saved_msg.json"):
-        self.filepath = filepath
-        with open(self.filepath, "w") as f:
-            json.dump({}, f)
-        self.topic_sub = rospy.Subscriber("/move_base/goal", MoveBaseActionGoal, callback=self.save_cb)
+class RGBD():
+    u"""RGB-Dデータを扱うクラス"""
 
-    def save_cb(self, msg):
-        with open(self.filepath, "w") as f:
-            json.dump(message_converter.convert_ros_message_to_dictionary(msg), f)
-
-
-class PixelData:
-    def __init__(self, pixel, hue, x, y, z):
-        self.pixel, self.hue, self.x, self.y, self.z = pixel, hue, x, y, z
-
-    def __str__(self):
-        return str(self.__dict__)
-
-
-class SegmentedObject:
-    def __init__(self, uid, pixels, header):
-        self.uid, self.pixels, self.header = uid, pixels, header
-
-        all_x = [pixel.x for pixel in self.pixels]
-        all_y = [pixel.y for pixel in self.pixels]
-        all_z = [pixel.z for pixel in self.pixels]
-        all_hues = [pixel.hue for pixel in self.pixels]
-
-        self.xyz_min = (min(all_x), min(all_y), min(all_z))
-        self.xyz_max = (max(all_x), max(all_y), max(all_z))
-        self.xyz_avg = (np.average(all_x), np.average(all_y), np.average(all_z))
-        self.xyz_med = (np.median(all_x), np.median(all_y), np.median(all_z))
-
-        self.hue_min = min(all_hues)
-        self.hue_max = max(all_hues)
-        self.hue_avg = np.average(all_hues)
-        self.hue_med = np.median(all_hues)
-
-        self.name = "object_with_hue_{}".format(self.hue_med)
-
-    def xyz_to_pose_stamped(self, xyz):
-        pose_stamped = PoseStamped(header=self.header)
-        pose_stamped.pose.position.x = xyz[0]
-        pose_stamped.pose.position.y = xyz[1]
-        pose_stamped.pose.position.z = xyz[2]
-        pose_stamped.pose.orientation = tf.transformations.quaternion_from_euler(0, 0, 0)
-        return pose_stamped
-
-    @property
-    def pose_min(self):
-        return xyz_to_pose_stamped(self.xyz_min)
-
-    @property
-    def pose_max(self):
-        return xyz_to_pose_stamped(self.xyz_max)
-
-    @property
-    def pose_avg(self):
-        return xyz_to_pose_stamped(self.xyz_avg)
-
-    @property
-    def pose_med(self):
-        return xyz_to_pose_stamped(self.xyz_med)
-
-
-class ColorBasedObjectDetector:
-    FLOOR_MIN_HUE, FLOOR_MAX_HUE = 14, 30
-
-    def __init__(self, start_on_init=True):
+    def __init__(self):
         self._br = tf.TransformBroadcaster()
-        self._cloud_sub = None
-
-        self._current_objects = None
-        self.lock = threading.Lock()
-
-        if start_on_init:
-            self.start()
-
-    def start(self):
-        if not self._cloud_sub:
-            self._cloud_sub = rospy.Subscriber(
-                "/hsrb/head_rgbd_sensor/depth_registered/rectified_points",
-                PointCloud2, self._cloud_cb
-            )
-
-    def pause(self):
-        if self._cloud_sub:
-            self._cloud_sub.unregister()
-            self._cloud_sub = None
-            self._current_objects = None
-
-    def wait_for_one_detection(self, timeout=10., sleep_duration=0.01):
-        start_time = time.time()
-        self.start()
-        current_objects = None
-        now = time.time()
-        while now - start_time < timeout:
-            if self._current_objects is not None:
-                current_objects = self._current_objects
-            else:
-                time.sleep(sleep_duration)
-            now = time.time()
-        self.pause()
-        return current_objects
+        # ポイントクラウドのサブスクライバのコールバックに_cloud_cbメソッドを登録
+        self._cloud_sub = rospy.Subscriber(
+            "/hsrb/head_rgbd_sensor/depth_registered/rectified_points",
+            PointCloud2, self._cloud_cb)
+        self._points_data = None
+        self._image_data = None
+        self._h_image = None
+        self._region = None
+        self._h_min = 0
+        self._h_max = 0
+        self._xyz = [0, 0, 0]
+        self._frame_name = None
 
     def _cloud_cb(self, msg):
-        points = ros_numpy.numpify(msg)
+        # ポイントクラウドを取得する
+        self._points_data = ros_numpy.numpify(msg)
 
-        image = points['rgb'].view((np.uint8, 4))[..., [2, 1, 0]]
+        # 画像を取得する
+        self._image_data = \
+            self._points_data['rgb'].view((np.uint8, 4))[..., [2, 1, 0]]
 
-        hsv_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV_FULL)
-        h_image = hsv_image[..., 0]
+        # 色相画像を作成する
+        hsv_image = cv2.cvtColor(self._image_data, cv2.COLOR_RGB2HSV_FULL)
+        self._h_image = hsv_image[..., 0]
 
-        floor_region = (h_image > self.FLOOR_MIN_HUE) & (h_image < self.FLOOR_MAX_HUE)
-        wall_and_robot_region = h_image == 0
-        objects_region = wall_and_robot_region | floor_region
+        # 色相の閾値内の領域を抽出する
+        self._region = \
+            (self._h_image > self._h_min) & (self._h_image < self._h_max)
 
-        object_pixels = zip(*np.where(objects_region==False))
-
-        if not object_pixels:
-            with self.lock:
-                self._current_objects = {}
+        # 領域がなければ処理を終える
+        if not np.any(self._region):
             return
 
-        db_scan_result = DBSCAN(eps=4, min_samples=10).fit(object_pixels)
+        # 領域からxyzを計算する
+        (y_idx, x_idx) = np.where(self._region)
+        x = np.average(self._points_data['x'][y_idx, x_idx])
+        y = np.average(self._points_data['y'][y_idx, x_idx])
+        z = np.average(self._points_data['z'][y_idx, x_idx])
+        self._xyz = [x, y, z]
 
-        uid_to_pixels = {}
-        for uid, pixel in zip(db_scan_result.labels_, object_pixels):
-            hue = h_image[pixel[0]][pixel[1]]
-            x, y, z = (points[letter][pixel[0]][pixel[1]] for letter in ['x', 'y', 'z'])
-            if uid in uid_to_pixels:
-                uid_to_pixels[uid].append(PixelData(pixel, hue, x, y, z))
-            else:
-                uid_to_pixels[uid] = [PixelData(pixel, hue, x, y, z)]
+        # 座標の名前が設定されてなければ処理を終える
+        if self._frame_name is None:
+            return
 
-        current_objects = {uid: SegmentedObject(uid, pixels, msg.header) for uid, pixels in uid_to_pixels.items()}
+        # tfを出力する
+        self._br.sendTransform(
+            (x, y, z), tf.transformations.quaternion_from_euler(0, 0, 0),
+            rospy.Time(msg.header.stamp.secs, msg.header.stamp.nsecs),
+            self._frame_name,
+            msg.header.frame_id)
 
-        for uid, obj in current_objects.items():
-            self._br.sendTransform(
-                obj.xyz_med, tf.transformations.quaternion_from_euler(0, 0, 0),
-                rospy.Time(obj.header.stamp.secs, obj.header.stamp.nsecs),
-                obj.name, obj.header.frame_id
-            )
+    def get_image(self):
+        u"""画像を取得する関数"""
+        return self._image_data
 
-        with self.lock:
-            self._current_objects = current_objects
+    def get_points(self):
+        u"""ポイントクラウドを取得する関数"""
+        return self._points_data
 
+    def get_h_image(self):
+        u"""色相画像を取得する関数"""
+        return self._h_image
 
-class InstructionListener:
-    def __init__(self):
-        self.instructions = []
-        self.instructions_lock = threading.Lock()
-        self.instruction_sub = rospy.Subscriber("/message", String, self.instructions_cb)
+    def get_region(self):
+        u"""抽出領域の画像を取得する関数"""
+        return self._region
 
-    def instructions_cb(self, msg):
-        with self.instructions_lock:
-            self.instructions.append(msg.data)
+    def get_xyz(self):
+        u"""抽出領域から計算されたxyzを取得する関数"""
+        return self._xyz
 
-    def get_latest_human_side_instruction(self):
-        with self.instructions_lock:
-            for instruction in reversed(self.instructions):
-                if "left" in instruction:
-                    return "left"
-                elif "right" in instruction:
-                    return "right"
-                else:
-                    continue
-            return None
+    def set_h(self, h_min, h_max):
+        u"""色相の閾値を設定する関数"""
+        self._h_min = h_min
+        self._h_max = h_max
+
+    def set_coordinate_name(self, name):
+        u"""座標の名前を設定する関数"""
+        self._frame_name = name
