@@ -17,6 +17,14 @@ RUN source /opt/ros/$ROS_DISTRO/setup.bash && \
     catkin_make install -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/ros/$ROS_DISTRO -DCATKIN_ENABLE_TESTING=0 && \
     cd / && rm -r /bio_ik_ws
 
+######################## BEGIN: USER PACKAGES ##########################
+RUN apt-get update && \
+    apt-get install -y git ros-$ROS_DISTRO-rospy-message-converter && \
+    apt-get clean
+
+RUN pip install scipy scikit-learn colour
+########################  END: USER PACKAGES  ##########################
+
 # create workspace folder
 RUN mkdir -p /workspace/src
 
