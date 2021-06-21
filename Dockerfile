@@ -19,7 +19,7 @@ RUN source /opt/ros/$ROS_DISTRO/setup.bash && \
 
 ######################## BEGIN: USER PACKAGES ##########################
 RUN apt-get update && \
-    apt-get install -y git ros-$ROS_DISTRO-rospy-message-converter && \
+    apt-get install -y python-pip ros-$ROS_DISTRO-rospy-message-converter && \
     apt-get clean
 
 RUN pip install scipy scikit-learn colour
