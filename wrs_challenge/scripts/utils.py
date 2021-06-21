@@ -19,7 +19,6 @@ from sklearn.cluster import DBSCAN
 
 
 from geometry_msgs.msg import PoseStamped, Quaternion, TransformStamped, Twist
-from IPython.display import Image
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseActionGoal
 from sensor_msgs.msg import LaserScan, PointCloud2
 from std_msgs.msg import Header, String
@@ -48,22 +47,6 @@ base.allow_replanning(True)
 
 
 tf_listener = tf.TransformListener()
-
-
-def screen_shot():
-    cmd = "import -window root /tmp/screen.png"
-    subprocess.call(cmd.split())
-
-    with open('/tmp/screen.png', 'rb') as file:
-        display(Image(data=file.read()))
-
-
-def screen_cast(sec):
-    cmd = "byzanz-record -d " + str(sec) + " /tmp/screencast.gif"
-    subprocess.call(cmd.split())
-
-    with open('/tmp/screencast.gif', 'rb') as file:
-        display(Image(data=file.read()))
 
 
 def move_base_vel(vx, vy, vw):
