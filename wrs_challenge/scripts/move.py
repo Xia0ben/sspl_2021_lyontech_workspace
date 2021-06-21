@@ -30,33 +30,3 @@ if __name__=='__main__':
     except:
         rospy.logerr('fail to move')
         sys.exit()
-
-    try:
-        # 把持用初期姿勢に遷移
-        move_arm_neutral()
-        # 手を開く
-        move_hand(1)
-        # 黄色のブロックに手を伸ばす（本来はブロックの座標は画像認識すべき）
-        move_wholebody_ik(0.9, 1.5, 0.2, 180, 0, 90)
-        # 手を下げる
-        move_wholebody_ik(0.9, 1.5, 0.08, 180, 0, 90)
-        # 手を閉じる
-        move_hand(0)
-        # 把持用初期姿勢に遷移
-        move_arm_neutral()
-    except:
-        rospy.logerr('fail to grasp')
-        sys.exit()
-
-    try:
-        # 移動姿勢
-        move_arm_init()
-        # トレーの前に移動
-        move_base_goal(1.8, -0.1, -90)
-        # 手を前に動かす
-        move_arm_neutral()
-        # 手を開く
-        move_hand(1)
-    except:
-        rospy.logerr('fail to move')
-        sys.exit()
