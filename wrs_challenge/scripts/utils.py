@@ -32,7 +32,13 @@ base_vel_pub = rospy.Publisher('/hsrb/command_velocity', Twist, queue_size=1)
 
 
 navclient = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
-
+nav_client_initialized = False
+while not nav_client_initialized:
+    nav_client_initialized = navclient.wait_for_server(timeout=rospy.Duration(20.0))
+    if nav_client_initialized:
+        rospy.loginfo("Navigation Action Server Connected")
+    else:
+        rospy.logwarn("Unable to connect to Navigation Action Server")
 
 arm = moveit_commander.MoveGroupCommander('arm')
 
