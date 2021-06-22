@@ -1,17 +1,39 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# ### Dependencies to add :
+# 
+# #### apt
+# 
+# ros-melodic-rospy-message-converter
+# 
+# #### pip
+# 
+# scipy
+# scikit-learn
+# colour
+
+# In[ ]:
+
+
+get_ipython().run_cell_magic(u'script', u'bash --bg', u'rviz -d data/3_navigation.rviz > /dev/null 2>&1')
+
+
+# In[1]:
+
+
+get_ipython().magic(u'matplotlib inline')
+import matplotlib.pyplot as plt
+
+
+# In[2]:
+
+
 import tf
 
 
 import rospy
 rospy.init_node("go_and_get_it_01")
-
-
-# Wait for Gazebo to actually properly start...
-while rospy.Time.now() == rospy.Time():
-    rospy.loginfo("Simulation paused/stalled")
-    time.sleep(0.1)
 
 
 from rospy_message_converter import json_message_converter
@@ -425,16 +447,16 @@ if latest_human_side_instruction == "right":
     turn_to_human_right_goal_str = '{"header": {"stamp": {"secs": 1725, "nsecs": 663000000}, "frame_id": "", "seq": 7}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1725, "nsecs": 657000000}, "frame_id": "map", "seq": 7}, "pose": {"position": {"y": 3.307887554168701, "x": 0.4466514587402344, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.8767583591536536, "w": -0.48093115895540894}}}}}'
     turn_to_human_right_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', turn_to_human_right_goal_str).goal
     move_base_actual_goal(turn_to_human_right_goal)
-
+    
     in_front_human_right_goal_str = ''
     in_front_human_right_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_right_goal_str).goal
     move_base_actual_goal(in_front_human_right_goal)
-
+    
 elif latest_human_side_instruction == "left":
     turn_to_human_left_goal_str = '{"header": {"stamp": {"secs": 1713, "nsecs": 756000000}, "frame_id": "", "seq": 6}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1713, "nsecs": 756000000}, "frame_id": "map", "seq": 6}, "pose": {"position": {"y": 3.334589719772339, "x": 0.4433136284351349, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.8656726416348606, "w": 0.5006105048088003}}}}}'
     turn_to_human_left_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', turn_to_human_left_goal_str).goal
     move_base_actual_goal(turn_to_human_left_goal)
-
+    
     in_front_human_left_goal_str = '{"header": {"stamp": {"secs": 2013, "nsecs": 108000000}, "frame_id": "", "seq": 11}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 2013, "nsecs": 105000000}, "frame_id": "map", "seq": 11}, "pose": {"position": {"y": 2.8104236125946045, "x": 0.7230702042579651, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999938547515791, "w": -0.0035057751037049652}}}}}'
     in_front_human_left_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_left_goal_str).goal
     move_base_actual_goal(in_front_human_left_goal)
@@ -488,3 +510,7 @@ move_hand(0)
 
 
 # In[ ]:
+
+
+
+
