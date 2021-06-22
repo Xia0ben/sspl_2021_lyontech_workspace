@@ -16,6 +16,7 @@ import time
 import json
 import threading
 from sklearn.cluster import DBSCAN
+import traceback
 
 
 from geometry_msgs.msg import PoseStamped, Quaternion, TransformStamped, Twist
@@ -25,50 +26,6 @@ from std_msgs.msg import Header, String
 
 
 from rospy_message_converter import message_converter
-
-
-
-base_vel_pub = rospy.Publisher('/hsrb/command_velocity', Twist, queue_size=1)
-
-
-navclient = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
-nav_client_initialized = False
-while not nav_client_initialized:
-    nav_client_initialized = navclient.wait_for_server(timeout=rospy.Duration(20.0))
-    if nav_client_initialized:
-        rospy.loginfo("Navigation Action Server Connected")
-    else:
-        rospy.logwarn("Unable to connect to Navigation Action Server")
-
-arm = moveit_commander.MoveGroupCommander('arm')
-
-
-gripper = moveit_commander.MoveGroupCommander("gripper")
-
-
-head = moveit_commander.MoveGroupCommander("head")
-
-
-base = moveit_commander.MoveGroupCommander("base")
-base.allow_replanning(True)
-
-
-tf_listener = tf.TransformListener()
-
-
-def move_base_vel(vx, vy, vw):
-    twist = Twist()
-    twist.linear.x = vx
-    twist.linear.y = vy
-    twist.angular.z = math.radians(vw)
-    base_vel_pub.publish(twist)
-
-
-def move_base_actual_goal(goal):
-    navclient.send_goal(goal)
-    navclient.wait_for_result()
-    state = navclient.get_state()
-    return True if state == 3 else False
 
 
 def get_current_time_sec():
@@ -82,83 +39,122 @@ def quaternion_from_euler(roll, pitch, yaw):
     return Quaternion(q[0], q[1], q[2], q[3])
 
 
-def move_base_goal(x, y, theta):
-    goal = MoveBaseGoal()
+class Robot:
+    def __init__(self):
+        init_threads = []
 
-    goal.target_pose.header.frame_id = "map"
+        init_threads.append(threading.Thread(target=self.init_base_vel_pub))
+        init_threads.append(threading.Thread(target=self.init_arm))
+        init_threads.append(threading.Thread(target=self.init_gripper))
+        init_threads.append(threading.Thread(target=self.init_head))
+        init_threads.append(threading.Thread(target=self.init_base))
+        init_threads.append(threading.Thread(target=self.init_tf_listener))
+        init_threads.append(threading.Thread(target=self.init_navclient))
 
-    goal.target_pose.pose.position.x = x
-    goal.target_pose.pose.position.y = y
+        for t in init_threads:
+            t.start()
 
-    goal.target_pose.pose.orientation = quaternion_from_euler(0, 0, theta)
+        for t in init_threads:
+            t.join()
 
-    navclient.send_goal(goal)
-    navclient.wait_for_result()
-    state = navclient.get_state()
+    def init_base_vel_pub(self):
+        self.base_vel_pub = rospy.Publisher('/hsrb/command_velocity', Twist, queue_size=1)
 
-    return True if state == 3 else False
+    def init_arm(self):
+        self.arm = moveit_commander.MoveGroupCommander('arm')
 
+    def init_gripper(self):
+        self.gripper = moveit_commander.MoveGroupCommander("gripper")
 
-def get_diff_between(target_frame, source_frame):
-    tf_listener.waitForTransform(target_frame, source_frame, rospy.Time(0),rospy.Duration(4.0))
-    transform = tf_listener.lookupTransform(target_frame, source_frame, rospy.Time(0))
-    return transform[0][0], transform[0][1]
+    def init_head(self):
+        self.head = moveit_commander.MoveGroupCommander("head")
 
+    def init_base(self):
+        self.base = moveit_commander.MoveGroupCommander("base")
 
-def move_arm_neutral():
-    arm.set_named_target('neutral')
-    return arm.go()
+    def init_tf_listener(self):
+        self.tf_listener = tf.TransformListener()
 
+    def init_navclient(self):
+        self.navclient = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
+        is_mb_up = self.is_move_base_up()
+        while not is_mb_up:
+            rospy.logwarn("Unable to connect to Navigation Action Server, state: {}".format(is_mb_up))
+            is_mb_up = self.is_move_base_up()
+        rospy.loginfo("Navigation Action Server Connected, state: {}".format(is_mb_up))
 
-def move_arm_init():
-    arm.set_named_target('go')
-    return arm.go()
+    def move_base_vel(self, vx, vy, vw):
+        twist = Twist()
+        twist.linear.x = vx
+        twist.linear.y = vy
+        twist.angular.z = math.radians(vw)
+        self.base_vel_pub.publish(twist)
 
+    def move_base_actual_goal(self, goal, timeout=60.):
+        self.navclient.send_goal(goal)
+        self.navclient.wait_for_result(timeout=rospy.Duration(timeout))
+        state = self.navclient.get_state()
+        return True if state == 3 else False
 
-def move_hand(v):
-    gripper.set_joint_value_target("hand_motor_joint", v)
-    success = gripper.go()
-    return success
+    def move_base_goal(self, x, y, theta):
+        goal = MoveBaseGoal()
 
+        goal.target_pose.header.frame_id = "map"
 
-def move_head_tilt(v):
-    head.set_joint_value_target("head_tilt_joint", v)
-    return head.go()
+        goal.target_pose.pose.position.x = x
+        goal.target_pose.pose.position.y = y
 
+        goal.target_pose.pose.orientation = quaternion_from_euler(0, 0, theta)
 
-def get_object_dict():
-    object_dict = {}
-    paths = glob.glob("/opt/ros/melodic/share/tmc_wrs_gazebo_worlds/models/ycb*")
-    for path in paths:
-        file = os.path.basename(path)
-        object_dict[file[8:]] = file
+        self.navclient.send_goal(goal)
+        self.navclient.wait_for_result()
+        state = self.navclient.get_state()
 
-    return object_dict
+        return True if state == 3 else False
 
+    def is_move_base_up(self):
+        transformed = False
+        while not transformed:
+            try:
+                self.tf_listener.waitForTransform("map", "base_link", rospy.Time(0),rospy.Duration(2.0))
+                transform = self.tf_listener.lookupTransform("map", "base_link", rospy.Time(0))
+                transformed = True
+            except Exception as e:
+                rospy.loginfo(traceback.format_exc(e))
+                time.sleep(0.1)
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = "map"
+        goal.target_pose.pose.position.x = transform[0][0]
+        goal.target_pose.pose.position.y = transform[0][1]
+        goal.target_pose.pose.position.z = transform[0][2]
+        goal.target_pose.pose.orientation.x = transform[1][0]
+        goal.target_pose.pose.orientation.y = transform[1][1]
+        goal.target_pose.pose.orientation.z = transform[1][2]
+        goal.target_pose.pose.orientation.w = transform[1][3]
+        return self.move_base_actual_goal(goal, 3.)
 
-def get_object_list():
-    object_list = get_object_dict().values()
-    object_list.sort()
-    for i in range(len(object_list)):
-        object_list[i] = object_list[i][8:]
+    def get_diff_between(self, target_frame, source_frame):
+        self.tf_listener.waitForTransform(target_frame, source_frame, rospy.Time(0),rospy.Duration(4.0))
+        transform = self.tf_listener.lookupTransform(target_frame, source_frame, rospy.Time(0))
+        return transform[0][0], transform[0][1]
 
-    return object_list
+    def move_arm_neutral(self):
+        self.arm.set_named_target('neutral')
+        return self.arm.go()
 
+    def move_arm_init(self):
+        self.arm.set_named_target('go')
+        return self.arm.go()
 
-def put_object(name, x, y, z):
-    cmd = "rosrun gazebo_ros spawn_model -database " \
-          + str(get_object_dict()[name]) \
-          + " -sdf -model " + str(name) \
-          + " -x " + str(y - 2.1) + \
-          " -y " + str(-x + 1.2) \
-          + " -z " + str(z)
-    subprocess.call(cmd.split())
+    def move_hand(self, v):
+        self.gripper.set_joint_value_target("hand_motor_joint", v)
+        success = self.gripper.go()
+        return success
 
+    def move_head_tilt(self, v):
+        self.head.set_joint_value_target("head_tilt_joint", v)
+        return self.head.go()
 
-def delete_object(name):
-    cmd = ['rosservice', 'call', 'gazebo/delete_model',
-           '{model_name: ' + str(name) + '}']
-    subprocess.call(cmd)
 
 
 class NavGoalToJsonFileSaver:
