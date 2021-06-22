@@ -7,7 +7,7 @@ import tf
 import rospy
 rospy.init_node("go_and_get_it_01")
 
-
+import time
 # Wait for Gazebo to actually properly start...
 while rospy.Time.now() == rospy.Time():
     rospy.loginfo("Simulation paused/stalled")
