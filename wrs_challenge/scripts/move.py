@@ -3,7 +3,17 @@
 import tf
 
 import rospy
+import time
 rospy.init_node("go_and_get_it_01")
+
+
+# Wait for Gazebo to actually properly start...
+while rospy.Time.now() == rospy.Time():
+    rospy.loginfo("Simulation paused/stalled")
+    time.sleep(0.1)
+
+
+rospy.loginfo("Simulation running correctly")
 
 from rospy_message_converter import json_message_converter
 
