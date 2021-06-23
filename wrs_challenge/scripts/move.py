@@ -102,9 +102,6 @@ uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
 
 # In[23]:
 
-
-import collision
-
 def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robot_pose_in_map, unit_angle=-5., debug_display=True):
     # Compute angle for robot base to face arm parallel direction between base_link and object
     o_x, o_y = robot.get_diff_between("base_link", obj.name)
@@ -151,7 +148,7 @@ def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robo
     robot.close_hand()
 
     # Clear the object, and reset robot pose
-    unit_rotation = collision.Rotation(unit_angle, (robot_pose_in_map[0], robot_pose_in_map[1]))
+    unit_rotation = utils.Rotation(unit_angle, (robot_pose_in_map[0], robot_pose_in_map[1]))
 
     total_angle = unit_angle
     prev_robot_polygon_after_rotation = robot_polygon_at_start
@@ -170,7 +167,7 @@ def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robo
         if debug_display:
             ax.plot(*robot_polygon_after_rotation.exterior.xy)
 
-        robot_collides, _, _, _, _, _ = collision.csv_check_collisions(
+        robot_collides, _, _, _, _, _ = utils.csv_check_collisions(
             0, utils.OTHER_POLYGONS, [prev_robot_polygon_after_rotation, robot_polygon_after_rotation], [unit_rotation],
             bb_type='minimum_rotated_rectangle', break_at_first=True
         )
