@@ -2,13 +2,13 @@
 # coding: utf-8
 
 # ### Dependencies to add :
-# 
+#
 # #### apt
-# 
+#
 # ros-melodic-rospy-message-converter
-# 
+#
 # #### pip
-# 
+#
 # scipy
 # scikit-learn
 # shapely
@@ -45,7 +45,7 @@ while rospy.Time.now() == rospy.Time():
     rospy.loginfo("Simulation paused/stalled")
     time.sleep(0.1)
 rospy.loginfo("Simulation started")
-    
+
 from rospy_message_converter import json_message_converter
 
 
@@ -119,7 +119,7 @@ objects_to_move = {}
 uid_by_distance = []
 uid_to_convex_footprint = {}
 for uid, obj in current_objects.items():
-    convex_footprint = MultiPoint(obj.bb_coords_2d).convex_hull    
+    convex_footprint = MultiPoint(obj.bb_coords_2d).convex_hull
     if convex_footprint.intersects(utils.TABOO_AREA_POLYGON):
         objects_to_move[uid] = obj
         min_distance = float("inf")
@@ -135,21 +135,21 @@ uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
 
 import collision
 
-def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robot_pose_in_map, unit_angle=-5., debug_display=True):    
+def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robot_pose_in_map, unit_angle=-5., debug_display=True):
     # Compute angle for robot base to face arm parallel direction between base_link and object
     o_x, o_y = robot.get_diff_between("base_link", obj.name)
     yaw = math.pi/2. - math.atan2(o_x, o_y)
-    
+
     joints_for_facing_object = robot.base.get_current_joint_values()
     joints_for_facing_object[2] += yaw
-    
+
     robot.base.set_joint_value_target(joints_for_facing_object)
     robot.base.go()
-    
+
     # Set to swiping pose
     robot.move_arm_to_swiping_pose()
     robot.open_hand()
-    
+
     # Compute translation for robot base to actually face the object
     a_x, a_y = robot.get_diff_between("base_link", "arm_flex_link")
 
@@ -159,74 +159,74 @@ def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robo
     point.header.stamp =rospy.Time(0)
     point.point.y= -a_y - 0.02  # Hardcoded correction to avoid overshoot
     p=robot.tf_listener.transformPoint("odom", point)
-    
+
     joints_for_going_to_object = robot.base.get_current_joint_values()
     joints_for_going_to_object[0] = p.point.y
     joints_for_going_to_object[1] = p.point.x
-    
+
     robot.base.set_joint_value_target(joints_for_going_to_object)
     robot.base.go()
-    
+
     # Compute translation for robot base to get the object and get it
     oo_x, oo_y = robot.get_diff_between("odom", obj.name)
     ho_x, ho_y = robot.get_diff_between("odom", "hand_palm_link")
-    
+
     joints_for_catching_to_object = robot.base.get_current_joint_values()
     joints_for_catching_to_object[0] += oo_y - ho_y
     joints_for_catching_to_object[1] += oo_x - ho_x
-    
+
     robot.base.set_joint_value_target(joints_for_catching_to_object)
     robot.base.go()
-    
+
     robot.close_hand()
-    
+
     # Clear the object, and reset robot pose
     unit_rotation = collision.Rotation(unit_angle, (robot_pose_in_map[0], robot_pose_in_map[1]))
 
     total_angle = unit_angle
     prev_robot_polygon_after_rotation = robot_polygon_at_start
     robot_collides = False
-    
+
     if debug_display:
         fig, ax = plt.subplots()
         ax.plot(*prev_robot_polygon_after_rotation.exterior.xy)
         ax.plot(*utils.RIGHT_WALL_POLYGON.exterior.xy)
         ax.plot(*utils.LEFT_WALL_POLYGON.exterior.xy)
         ax.plot(*utils.TABOO_AREA_POLYGON.exterior.xy)
-    
+
     while total_angle > -180. and not robot_collides:  # and not object_collides:
         robot_polygon_after_rotation = unit_rotation.apply(prev_robot_polygon_after_rotation)
-        
+
         if debug_display:
             ax.plot(*robot_polygon_after_rotation.exterior.xy)
-               
+
         robot_collides, _, _, _, _, _ = collision.csv_check_collisions(
             0, utils.OTHER_POLYGONS, [prev_robot_polygon_after_rotation, robot_polygon_after_rotation], [unit_rotation],
             bb_type='minimum_rotated_rectangle', break_at_first=True
         )
-                                       
+
         prev_robot_polygon_after_rotation = robot_polygon_after_rotation
         total_angle += unit_angle
-    
+
     if debug_display:
         ax.axis('equal')
         fig.show()
-    
-    total_angle -= unit_angle if not(robot_collides or object_collides) else 2. * unit_angle    
+
+    total_angle -= unit_angle if not(robot_collides or object_collides) else 2. * unit_angle
     joints_for_clearing_object = robot.base.get_current_joint_values()
     joints_for_clearing_object[2] += math.radians(total_angle)
-    
+
     robot.base.set_joint_value_target(joints_for_clearing_object)
     robot.base.go()
-    
+
     robot.open_hand()
-    
+
     joints_for_raising_arm = robot.arm.get_current_joint_values()
     joints_for_raising_arm[0] += 0.4
-    robot.arm.set_joint_value_target(joints_for_reaching_apple)
+    robot.arm.set_joint_value_target(joints_for_raising_arm)
     robot.arm.go()
-    
-    
+
+
 
 
 # In[24]:
@@ -478,16 +478,16 @@ if latest_human_side_instruction == "right":
     turn_to_human_right_goal_str = '{"header": {"stamp": {"secs": 1725, "nsecs": 663000000}, "frame_id": "", "seq": 7}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1725, "nsecs": 657000000}, "frame_id": "map", "seq": 7}, "pose": {"position": {"y": 3.307887554168701, "x": 0.4466514587402344, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.8767583591536536, "w": -0.48093115895540894}}}}}'
     turn_to_human_right_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', turn_to_human_right_goal_str).goal
     robot.move_base_actual_goal(turn_to_human_right_goal)
-    
+
     in_front_human_right_goal_str = ''
     in_front_human_right_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_right_goal_str).goal
     robot.move_base_actual_goal(in_front_human_right_goal)
-    
+
 elif latest_human_side_instruction == "left":
     turn_to_human_left_goal_str = '{"header": {"stamp": {"secs": 1713, "nsecs": 756000000}, "frame_id": "", "seq": 6}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1713, "nsecs": 756000000}, "frame_id": "map", "seq": 6}, "pose": {"position": {"y": 3.334589719772339, "x": 0.4433136284351349, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.8656726416348606, "w": 0.5006105048088003}}}}}'
     turn_to_human_left_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', turn_to_human_left_goal_str).goal
     robot.move_base_actual_goal(turn_to_human_left_goal)
-    
+
     in_front_human_left_goal_str = '{"header": {"stamp": {"secs": 2013, "nsecs": 108000000}, "frame_id": "", "seq": 11}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 2013, "nsecs": 105000000}, "frame_id": "map", "seq": 11}, "pose": {"position": {"y": 2.8104236125946045, "x": 0.7230702042579651, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999938547515791, "w": -0.0035057751037049652}}}}}'
     in_front_human_left_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_left_goal_str).goal
     robot.move_base_actual_goal(in_front_human_left_goal)
@@ -578,7 +578,3 @@ robot.close_hand()
 
 
 # In[ ]:
-
-
-
-

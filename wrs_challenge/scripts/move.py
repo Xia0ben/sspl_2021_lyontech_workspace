@@ -179,7 +179,7 @@ def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robo
         ax.axis('equal')
         fig.show()
 
-    total_angle -= unit_angle if not(robot_collides or object_collides) else 2. * unit_angle
+    total_angle -= unit_angle if not(robot_collides or object_collides) else (2. * unit_angle)
     joints_for_clearing_object = robot.base.get_current_joint_values()
     joints_for_clearing_object[2] += math.radians(total_angle)
 
@@ -192,6 +192,12 @@ def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robo
     joints_for_raising_arm[0] += 0.4
     robot.arm.set_joint_value_target(joints_for_raising_arm)
     robot.arm.go()
+
+    joints_for_getting_back = robot.base.get_current_joint_values()
+    joints_for_getting_back[2] -= math.radians(total_angle)
+
+    robot.base.set_joint_value_target(joints_for_getting_back)
+    robot.base.go()
 
 
 
