@@ -21,6 +21,7 @@ import traceback
 from future.utils import with_metaclass
 from shapely.geometry import Polygon, MultiPoint, Point
 from shapely import affinity
+import matplotlib.pyplot as plt
 from aabbtree import AABB, AABBTree
 
 
@@ -484,6 +485,23 @@ def csv_check_collisions(main_uid, other_polygons, polygon_sequence, action_sequ
         )
 
     if collides_with:
+        if display_debug:
+            fig, ax = plt.subplots()
+            for p in polygon_sequence:
+                ax.plot(*p.exterior.xy, color='grey')
+            # for i in indexes:
+            #     ax.plot(*polygon_sequence[i].exterior.xy, color='blue')
+            for p in other_polygons.values():
+                ax.plot(*p.exterior.xy, color='black')
+            x, y = zip(*[[vertex.x, vertex.y] for vertex in bb_vertices])
+            ax.scatter(x, y, marker='x')
+            ax.plot(*csv_polygon.exterior.xy, color='green')
+            intersection = csv_polygon.intersection(other_polygons[collides_with[main_uid][0]])
+            ax.plot(*intersection.exterior.xy, color='red')
+            ax.axis('equal')
+            fig.show()
+            print("")
+
         if len(bb_vertices) >= 2:
             first_half_bb_vertices = bb_vertices[:len(bb_vertices) // 2]
             second_half_bb_vertices = bb_vertices[len(bb_vertices) // 2:]
