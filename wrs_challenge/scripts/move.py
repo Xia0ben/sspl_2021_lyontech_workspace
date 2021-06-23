@@ -46,8 +46,6 @@ with open("saved_msg.json") as f:
     print(f.read())
 
 
-# In[19]:
-
 
 beside_bins_goal_str = '{"header": {"stamp": {"secs": 282, "nsecs": 639000000}, "frame_id": "", "seq": 0}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 282, "nsecs": 633000000}, "frame_id": "map", "seq": 0}, "pose": {"position": {"y": 0.04305005073547363, "x": 2.4967446327209473, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.003784852844821431, "w": 0.9999928374188203}}}}}'
 beside_bins_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', beside_bins_goal_str).goal
