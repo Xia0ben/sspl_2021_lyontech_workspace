@@ -190,7 +190,7 @@ def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robo
 
     joints_for_raising_arm = robot.arm.get_current_joint_values()
     joints_for_raising_arm[0] += 0.4
-    robot.arm.set_joint_value_target(joints_for_reaching_apple)
+    robot.arm.set_joint_value_target(joints_for_raising_arm)
     robot.arm.go()
 
 
