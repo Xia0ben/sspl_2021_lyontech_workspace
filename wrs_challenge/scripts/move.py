@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
+import matplotlib.pyplot as plt
+
+
+# In[3]:
+
+
 import math
 
 import tf
@@ -40,7 +46,7 @@ rospy.loginfo("Imports done, robot initialized.")
 utils.NavGoalToJsonFileSaver("saved_msg.json")
 
 
-# In[5]:
+# In[29]:
 
 
 with open("saved_msg.json") as f:
@@ -50,14 +56,14 @@ with open("saved_msg.json") as f:
 # In[6]:
 
 
-beside_bins_goal_str = '{"header": {"stamp": {"secs": 282, "nsecs": 639000000}, "frame_id": "", "seq": 0}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 282, "nsecs": 633000000}, "frame_id": "map", "seq": 0}, "pose": {"position": {"y": 0.04305005073547363, "x": 2.4967446327209473, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.003784852844821431, "w": 0.9999928374188203}}}}}'
+beside_bins_goal_str = '{"header": {"stamp": {"secs": 182, "nsecs": 889000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 182, "nsecs": 889000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 0.31022635102272034, "x": 2.4421634674072266, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": -0.0026041090858226357, "w": 0.9999966093021861}}}}}'
 beside_bins_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', beside_bins_goal_str).goal
 
 rospy.loginfo("Sending first goal")
 robot.move_base_actual_goal(beside_bins_goal)
 rospy.loginfo("First goal sent")
 
-beside_bins_turn_goal_str = '{"header": {"stamp": {"secs": 320, "nsecs": 169000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 320, "nsecs": 166000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 0.14174890518188477, "x": 2.5354907512664795, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7007005461194897, "w": 0.7134554959265847}}}}}'
+beside_bins_turn_goal_str = '{"header": {"stamp": {"secs": 208, "nsecs": 770000000}, "frame_id": "", "seq": 2}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 208, "nsecs": 743000000}, "frame_id": "map", "seq": 2}, "pose": {"position": {"y": 0.4013778567314148, "x": 2.4725470542907715, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7055942189706708, "w": 0.7086161148006508}}}}}'
 beside_bins_turn_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', beside_bins_turn_goal_str).goal
 
 robot.move_base_actual_goal(beside_bins_turn_goal)
@@ -107,121 +113,6 @@ uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
 
 
 # In[11]:
-
-
-# import collision
-
-# def swipe_object_away(obj, object_polygon_at_start, robot_polygon_at_start, robot_pose_in_map, unit_angle=-5., debug_display=True):
-#     # Compute angle for robot base to face arm parallel direction between base_link and object
-#     o_x, o_y = robot.get_diff_between("base_link", obj.name)
-#     yaw = math.pi/2. - math.atan2(o_x, o_y)
-
-#     joints_for_facing_object = robot.base.get_current_joint_values()
-#     joints_for_facing_object[2] += yaw
-
-#     robot.base.set_joint_value_target(joints_for_facing_object)
-#     robot.base.go()
-
-#     # Set to swiping pose
-#     robot.move_arm_to_swiping_pose()
-#     robot.open_hand()
-
-#     # Compute translation for robot base to actually face the object
-#     a_x, a_y = robot.get_diff_between("base_link", "arm_flex_link")
-
-#     robot.tf_listener.waitForTransform("/base_link", "/odom", rospy.Time(0),rospy.Duration(4.0))
-#     point=PointStamped()
-#     point.header.frame_id = "base_link"
-#     point.header.stamp =rospy.Time(0)
-#     point.point.y= -a_y - 0.02  # Hardcoded correction to avoid overshoot
-#     p=robot.tf_listener.transformPoint("odom", point)
-
-#     joints_for_going_to_object = robot.base.get_current_joint_values()
-#     joints_for_going_to_object[0] = p.point.y
-#     joints_for_going_to_object[1] = p.point.x
-
-#     robot.base.set_joint_value_target(joints_for_going_to_object)
-#     robot.base.go()
-
-#     # Compute translation for robot base to get the object and get it
-#     oo_x, oo_y = robot.get_diff_between("odom", obj.name)
-#     ho_x, ho_y = robot.get_diff_between("odom", "hand_palm_link")
-
-#     joints_for_catching_to_object = robot.base.get_current_joint_values()
-#     joints_for_catching_to_object[0] += oo_y - ho_y
-#     joints_for_catching_to_object[1] += oo_x - ho_x
-
-#     robot.base.set_joint_value_target(joints_for_catching_to_object)
-#     robot.base.go()
-
-#     robot.close_hand()
-
-#     # Clear the object, and reset robot pose
-#     unit_rotation = collision.Rotation(unit_angle, (robot_pose_in_map[0], robot_pose_in_map[1]))
-
-#     total_angle = unit_angle
-#     prev_robot_polygon_after_rotation = robot_polygon_at_start
-#     robot_collides = False
-
-#     if debug_display:
-#         fig, ax = plt.subplots()
-#         ax.plot(*prev_robot_polygon_after_rotation.exterior.xy)
-#         ax.plot(*utils.RIGHT_WALL_POLYGON.exterior.xy)
-#         ax.plot(*utils.LEFT_WALL_POLYGON.exterior.xy)
-#         ax.plot(*utils.TABOO_AREA_POLYGON.exterior.xy)
-
-#     while total_angle > -180. and not robot_collides:  # and not object_collides:
-#         robot_polygon_after_rotation = unit_rotation.apply(prev_robot_polygon_after_rotation)
-
-#         if debug_display:
-#             ax.plot(*robot_polygon_after_rotation.exterior.xy)
-
-#         robot_collides, _, _, _, _, _ = collision.csv_check_collisions(
-#             0, utils.OTHER_POLYGONS, [prev_robot_polygon_after_rotation, robot_polygon_after_rotation], [unit_rotation],
-#             bb_type='minimum_rotated_rectangle', break_at_first=True
-#         )
-
-#         prev_robot_polygon_after_rotation = robot_polygon_after_rotation
-#         total_angle += unit_angle
-
-#     if debug_display:
-#         ax.axis('equal')
-#         fig.show()
-
-#     total_angle -= unit_angle if not(robot_collides or object_collides) else (2. * unit_angle)
-#     joints_for_clearing_object = robot.base.get_current_joint_values()
-#     joints_for_clearing_object[2] += math.radians(total_angle)
-#     print(total_angle)
-
-#     robot.base.set_joint_value_target(joints_for_clearing_object)
-#     robot.base.go()
-
-#     robot.open_hand()
-
-#     joints_for_raising_arm = robot.arm.get_current_joint_values()
-#     joints_for_raising_arm[0] += 0.4
-#     robot.arm.set_joint_value_target(joints_for_raising_arm)
-#     robot.arm.go()
-
-#     joints_for_getting_back = robot.base.get_current_joint_values()
-#     joints_for_getting_back[2] -= math.radians(total_angle)
-
-#     robot.base.set_joint_value_target(joints_for_getting_back)
-#     robot.base.go()
-
-
-
-
-# In[12]:
-
-
-# robot_polygon = utils.set_polygon_pose(utils.ROBOT_POLYGON_FOR_SWIPING, (0., 0., 0.), robot_pose_in_map, (0., 0.))
-# for (uid, _) in uid_by_distance:
-#     obj = objects_to_move[uid]
-#     swipe_object_away(obj, uid_to_convex_footprint[uid], robot_polygon, robot_pose_in_map)
-
-
-# In[13]:
 
 
 def pick_object_away(obj):
@@ -307,7 +198,7 @@ def pick_object_away(obj):
     robot.base.go()
 
 
-# In[14]:
+# In[12]:
 
 
 for (uid, _) in uid_by_distance:
@@ -315,71 +206,58 @@ for (uid, _) in uid_by_distance:
     pick_object_away(obj)
 
 
-# In[15]:
+# In[13]:
 
 
 robot.move_arm_init()
 robot.close_hand()
 
 
-# In[16]:
+# In[14]:
 
 
 robot.move_head_tilt(-0.9)
 
 
-# In[17]:
+# In[15]:
 
 
-rotate_before_stear_clear_goal_str = '{"header": {"stamp": {"secs": 117, "nsecs": 345000000}, "frame_id": "", "seq": 0}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 117, "nsecs": 345000000}, "frame_id": "map", "seq": 0}, "pose": {"position": {"y": 1.9495398998260498, "x": 2.5787177085876465, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.8523102169808354, "w": 0.5230366086901387}}}}}'
-rotate_before_stear_clear_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', rotate_before_stear_clear_goal_str).goal
-
-
-# In[18]:
-
-
-robot.move_base_actual_goal(rotate_before_stear_clear_goal)
-
-
-# In[19]:
-
-
-enter_room_02_goal_str = '{"header": {"stamp": {"secs": 187, "nsecs": 455000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 187, "nsecs": 452000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 3.10935378074646, "x": 1.6804301738739014, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.8766056986594742, "w": 0.4812093609622895}}}}}'
+enter_room_02_goal_str = '{"header": {"stamp": {"secs": 688, "nsecs": 512000000}, "frame_id": "", "seq": 11}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 688, "nsecs": 512000000}, "frame_id": "map", "seq": 11}, "pose": {"position": {"y": 2.9992051124572754, "x": 2.3737993240356445, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7056854446361143, "w": 0.708525266471655}}}}}'
 enter_room_02_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', enter_room_02_goal_str).goal
 
 
-# In[20]:
+# In[16]:
 
 
 robot.move_base_actual_goal(enter_room_02_goal)
 
 
-# In[21]:
+# In[17]:
 
 
-in_front_shelf_goal_str = '{"header": {"stamp": {"secs": 265, "nsecs": 137000000}, "frame_id": "", "seq": 3}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 265, "nsecs": 128000000}, "frame_id": "map", "seq": 3}, "pose": {"position": {"y": 3.871192455291748, "x": 2.2148544788360596, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7140042250431763, "w": 0.7001413904494529}}}}}'
+in_front_shelf_goal_str = '{"header": {"stamp": {"secs": 607, "nsecs": 362000000}, "frame_id": "", "seq": 6}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 607, "nsecs": 353000000}, "frame_id": "map", "seq": 6}, "pose": {"position": {"y": 3.7436118125915527, "x": 2.2750515937805176, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7071067966408575, "w": 0.7071067657322372}}}}}'
 in_front_shelf_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_shelf_goal_str).goal
 
 
-# In[22]:
+# In[18]:
 
 
 robot.move_base_actual_goal(in_front_shelf_goal)
 
 
-# In[23]:
+# In[19]:
 
 
 robot.move_head_tilt(-0.3)
 
 
-# In[24]:
+# In[20]:
 
 
 current_objects = scene.wait_for_one_detection(use_labels=True)
 
 
-# In[25]:
+# In[21]:
 
 
 chosen_object = None
@@ -411,7 +289,7 @@ if not chosen_object:
     sys.exit(0)
 
 
-# In[26]:
+# In[22]:
 
 
 FIRST_SHELF_LINEAR_JOINT_HEIGHT = 0.21
@@ -487,93 +365,72 @@ def pick_object_from_shelf(obj):
     robot.move_arm_init()
 
 
-# In[27]:
+# In[23]:
 
 
 pick_object_from_shelf(chosen_object)
 
 
-# In[28]:
+# In[25]:
 
 
-turn_away_from_shelf_goal_str = '{"header": {"stamp": {"secs": 1194, "nsecs": 756000000}, "frame_id": "", "seq": 0}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1194, "nsecs": 756000000}, "frame_id": "map", "seq": 0}, "pose": {"position": {"y": 4.0555524826049805, "x": 2.27242374420166, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.999989479138774, "w": -0.004587113663660934}}}}}'
-turn_away_from_shelf_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', turn_away_from_shelf_goal_str).goal
-
-
-# In[29]:
-
-
-robot.move_base_actual_goal(turn_away_from_shelf_goal)
-
-
-# In[30]:
-
-
-move_between_humans_goal_str = '{"header": {"stamp": {"secs": 1342, "nsecs": 239000000}, "frame_id": "", "seq": 5}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1342, "nsecs": 230000000}, "frame_id": "map", "seq": 5}, "pose": {"position": {"y": 3.354616641998291, "x": 0.4766915440559387, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.999855500851024, "w": 0.016999335809019533}}}}}'
+move_between_humans_goal_str = '{"header": {"stamp": {"secs": 134, "nsecs": 703000000}, "frame_id": "", "seq": 0}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 134, "nsecs": 679000000}, "frame_id": "map", "seq": 0}, "pose": {"position": {"y": 3.857577323913574, "x": 1.0511448383331299, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999999998344654, "w": -1.819530991026369e-05}}}}}'
 move_between_humans_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', move_between_humans_goal_str).goal
 
 
-# In[31]:
+# In[26]:
 
 
 robot.move_base_actual_goal(move_between_humans_goal)
 
 
-# In[32]:
+# In[ ]:
 
 
 latest_human_side_instruction = message_parser.get_person()
 if latest_human_side_instruction == "right":
-    turn_to_human_right_goal_str = '{"header": {"stamp": {"secs": 1725, "nsecs": 663000000}, "frame_id": "", "seq": 7}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1725, "nsecs": 657000000}, "frame_id": "map", "seq": 7}, "pose": {"position": {"y": 3.307887554168701, "x": 0.4466514587402344, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.8767583591536536, "w": -0.48093115895540894}}}}}'
-    turn_to_human_right_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', turn_to_human_right_goal_str).goal
-    robot.move_base_actual_goal(turn_to_human_right_goal)
-
-    in_front_human_right_goal_str = ''
+    in_front_human_right_goal_str = '{"header": {"stamp": {"secs": 176, "nsecs": 562000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 176, "nsecs": 562000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 3.909142017364502, "x": 0.40349310636520386, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999394114821857, "w": -0.011007877391217903}}}}}'
     in_front_human_right_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_right_goal_str).goal
     robot.move_base_actual_goal(in_front_human_right_goal)
 
 else:
-    turn_to_human_left_goal_str = '{"header": {"stamp": {"secs": 1713, "nsecs": 756000000}, "frame_id": "", "seq": 6}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1713, "nsecs": 756000000}, "frame_id": "map", "seq": 6}, "pose": {"position": {"y": 3.334589719772339, "x": 0.4433136284351349, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.8656726416348606, "w": 0.5006105048088003}}}}}'
-    turn_to_human_left_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', turn_to_human_left_goal_str).goal
-    robot.move_base_actual_goal(turn_to_human_left_goal)
-
-    in_front_human_left_goal_str = '{"header": {"stamp": {"secs": 2013, "nsecs": 108000000}, "frame_id": "", "seq": 11}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 2013, "nsecs": 105000000}, "frame_id": "map", "seq": 11}, "pose": {"position": {"y": 2.8104236125946045, "x": 0.7230702042579651, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999938547515791, "w": -0.0035057751037049652}}}}}'
+    in_front_human_left_goal_str = '{"header": {"stamp": {"secs": 209, "nsecs": 613000000}, "frame_id": "", "seq": 2}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 209, "nsecs": 613000000}, "frame_id": "map", "seq": 2}, "pose": {"position": {"y": 2.8555641174316406, "x": 0.5514420866966248, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999989738094117, "w": -0.0014326130403864133}}}}}'
     in_front_human_left_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_left_goal_str).goal
     robot.move_base_actual_goal(in_front_human_left_goal)
 
 
-# In[33]:
+# In[30]:
 
 
 robot.move_arm_neutral()
 
 
-# In[35]:
+# In[ ]:
 
 
 # To save points published in Rviz, simply use the following commands
 
 
-# In[36]:
+# In[ ]:
 
 
 # saver = PointsSaver()
 
 
-# In[37]:
+# In[ ]:
 
 
 # coords = saver.get_coords()
 # coords
 
 
-# In[38]:
+# In[ ]:
 
 
 # To transform saved points in the base_link frame, simply use the following commands
 
 
-# In[39]:
+# In[ ]:
 
 
 # robot.tf_listener.waitForTransform("map", "base_link", rospy.Time(0),rospy.Duration(4.0))
