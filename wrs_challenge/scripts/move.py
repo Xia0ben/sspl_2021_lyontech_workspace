@@ -525,25 +525,3 @@ robot.move_arm_neutral()
 #     p=robot.tf_listener.transformPoint("base_link", point)
 #     transformed_coords.append((p.point.x, p.point.y))
 # transformed_coords
-
-
-# In[ ]:
-
-
-robot.open_hand()
-
-
-# In[ ]:
-
-
-robot.gripper.get_current_joint_values()
-
-
-# In[ ]:
-
-
-import numpy as np
-
-
-
-# In[ ]:
