@@ -4,7 +4,7 @@
 import matplotlib.pyplot as plt
 
 
-# In[4]:
+# In[2]:
 
 
 import math
@@ -41,20 +41,20 @@ message_parser = utils.MessageParser()
 rospy.loginfo("Imports done, robot initialized.")
 
 
-# In[5]:
+# In[3]:
 
 
 utils.NavGoalToJsonFileSaver("saved_msg.json")
 
 
-# In[6]:
+# In[4]:
 
 
 with open("saved_msg.json") as f:
     print(f.read())
 
 
-# In[7]:
+# In[5]:
 
 
 beside_bins_goal_str = '{"header": {"stamp": {"secs": 182, "nsecs": 889000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 182, "nsecs": 889000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 0.31022635102272034, "x": 2.4421634674072266, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": -0.0026041090858226357, "w": 0.9999966093021861}}}}}'
@@ -70,7 +70,7 @@ beside_bins_turn_goal = json_message_converter.convert_json_to_ros_message('move
 robot.move_base_actual_goal(beside_bins_turn_goal)
 
 
-# In[8]:
+# In[6]:
 
 
 obstacle_avoidance_area_goal_str = '{"header": {"stamp": {"secs": 1218, "nsecs": 867000000}, "frame_id": "", "seq": 21}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1218, "nsecs": 867000000}, "frame_id": "map", "seq": 21}, "pose": {"position": {"y": 1.7440035343170166, "x": 2.618055582046509, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7167735161966976, "w": 0.697306049363565}}}}}'
@@ -79,41 +79,47 @@ obstacle_avoidance_area_goal = json_message_converter.convert_json_to_ros_messag
 robot.move_base_actual_goal(obstacle_avoidance_area_goal)
 
 
-# In[9]:
+# In[7]:
 
 
 robot.move_head_tilt(-1)
 
 
-# In[10]:
+# In[8]:
 
 
 current_objects = scene.wait_for_one_detection()
 
 
+# In[9]:
+
+
+def get_sorted_obj_list_by_distance(cur_objects):
+    robot.tf_listener.waitForTransform("map", "base_link", rospy.Time(0),rospy.Duration(4.0))
+    robot_transform = robot.tf_listener.lookupTransform("map", "base_link", rospy.Time(0))
+    robot_pose_in_map = robot_transform[0][0], robot_transform[0][1], math.degrees(tf.transformations.euler_from_quaternion(robot_transform[1])[2])
+
+    uid_by_distance = []
+    uid_to_convex_footprint = {}
+    for uid, obj in cur_objects.items():
+        convex_footprint = MultiPoint(obj.bb_coords_2d).convex_hull
+        if convex_footprint.intersects(utils.TABOO_AREA_POLYGON):
+            min_distance = float("inf")
+            for coord in obj.bb_coords_2d:
+                min_distance = min(min_distance, utils.euclidean_distance(coord, robot_pose_in_map))
+            uid_by_distance.append((uid, min_distance))
+            uid_to_convex_footprint[uid] = convex_footprint
+    uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
+    return uid_by_distance
+
+
+# In[10]:
+
+
+uid_by_distance = get_sorted_obj_list_by_distance(current_objects)
+
+
 # In[11]:
-
-
-robot.tf_listener.waitForTransform("map", "base_link", rospy.Time(0),rospy.Duration(4.0))
-robot_transform = robot.tf_listener.lookupTransform("map", "base_link", rospy.Time(0))
-robot_pose_in_map = robot_transform[0][0], robot_transform[0][1], math.degrees(tf.transformations.euler_from_quaternion(robot_transform[1])[2])
-
-objects_to_move = {}
-uid_by_distance = []
-uid_to_convex_footprint = {}
-for uid, obj in current_objects.items():
-    convex_footprint = MultiPoint(obj.bb_coords_2d).convex_hull
-    if convex_footprint.intersects(utils.TABOO_AREA_POLYGON):
-        objects_to_move[uid] = obj
-        min_distance = float("inf")
-        for coord in obj.bb_coords_2d:
-            min_distance = min(min_distance, utils.euclidean_distance(coord, robot_pose_in_map))
-        uid_by_distance.append((uid, min_distance))
-        uid_to_convex_footprint[uid] = convex_footprint
-uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
-
-
-# In[12]:
 
 
 def pick_object_away(obj):
@@ -177,6 +183,9 @@ def pick_object_away(obj):
     # Keep it close to your heart
     robot.move_arm_init()
 
+    if robot.is_hand_fully_closed():
+        return False
+
     # Turn 180deg
     joints_turn_180_deg = robot.base.get_current_joint_values()
     joints_turn_180_deg[2] -= math.radians(180)
@@ -187,6 +196,7 @@ def pick_object_away(obj):
     robot.arm.set_joint_value_target(joints_for_arm_picking_from_ground)
     robot.arm.go()
     robot.open_hand()
+    robot.shake_wrist()
 
     # Reset arm pose
     robot.move_arm_init()
@@ -198,98 +208,125 @@ def pick_object_away(obj):
     robot.base.set_joint_value_target(joints_turn_180_deg)
     robot.base.go()
 
+    return True
+
+
+# In[12]:
+
+
+# Initial base joints
+joints_for_going_back = robot.base.get_current_joint_values()
+
+is_object_moved = True
+for (uid, _) in uid_by_distance:
+    obj = current_objects[uid]
+    is_object_moved = pick_object_away(obj)
+    joints_for_going_back = robot.base.get_current_joint_values()
+    if not is_object_moved:
+        break
+if not is_object_moved:
+    robot.base.set_joint_value_target(joints_for_going_back)
+    robot.base.go()
+    current_objects = scene.wait_for_one_detection()
+    uid_by_distance = get_sorted_obj_list_by_distance(current_objects)
+    for (uid, _) in uid_by_distance:
+        obj = current_objects[uid]
+        pick_object_away(obj)
+
 
 # In[13]:
-
-
-for (uid, _) in uid_by_distance:
-    obj = objects_to_move[uid]
-    pick_object_away(obj)
-
-
-# In[14]:
 
 
 robot.move_arm_init()
 robot.close_hand()
 
 
-# In[15]:
+# In[14]:
 
 
 robot.move_head_tilt(-0.9)
 
 
-# In[16]:
+# In[15]:
 
 
 enter_room_02_goal_str = '{"header": {"stamp": {"secs": 688, "nsecs": 512000000}, "frame_id": "", "seq": 11}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 688, "nsecs": 512000000}, "frame_id": "map", "seq": 11}, "pose": {"position": {"y": 2.9992051124572754, "x": 2.3737993240356445, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7056854446361143, "w": 0.708525266471655}}}}}'
 enter_room_02_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', enter_room_02_goal_str).goal
 
 
-# In[17]:
+# In[16]:
 
 
 robot.move_base_actual_goal(enter_room_02_goal)
 
 
-# In[18]:
+# In[17]:
 
 
 in_front_shelf_goal_str = '{"header": {"stamp": {"secs": 607, "nsecs": 362000000}, "frame_id": "", "seq": 6}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 607, "nsecs": 353000000}, "frame_id": "map", "seq": 6}, "pose": {"position": {"y": 3.7436118125915527, "x": 2.2750515937805176, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7071067966408575, "w": 0.7071067657322372}}}}}'
 in_front_shelf_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_shelf_goal_str).goal
 
 
-# In[19]:
+# In[18]:
 
 
 robot.move_base_actual_goal(in_front_shelf_goal)
 
 
+# In[19]:
+
+
+robot.move_head_tilt(-0.2)
+
+
 # In[20]:
-
-
-robot.move_head_tilt(-0.3)
-
-
-# In[21]:
 
 
 current_objects = scene.wait_for_one_detection(use_labels=True)
 
 
+# In[21]:
+
+
+def get_chosen_object(cur_objects):
+
+    chosen_object = None
+
+    # Prioritize choosing objects that look like the required one
+    required_label = message_parser.get_object_darknet()
+    if required_label:
+        rospy.loginfo("Object to be delivered is: {}".format(required_label))
+
+    # Choose closest object that fits in robot's hand by default otherwise
+    uid_by_distance = []
+    for uid, obj in cur_objects.items():
+        convex_footprint = MultiPoint(obj.bb_coords_2d).convex_hull
+        if isinstance(convex_footprint, Polygon):
+            obj_radius = utils.get_circumscribed_radius(convex_footprint)
+        else:
+            obj_radius = 0.00000000001
+        if obj_radius <= robot.GRASP_RADIUS:
+            x, _= robot.get_diff_between("base_link", obj.name)
+            uid_by_distance.append((uid, x))
+            if required_label and obj.label == required_label:
+                chosen_object = obj
+
+    if not chosen_object:
+        uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
+        if uid_by_distance:
+            chosen_object = cur_objects[uid_by_distance[0][0]]
+
+    if not chosen_object:
+        rospy.logwarn("No object was able to be chosen. Stopping robot.")
+        sys.exit(0)
+
+    return chosen_object
+
+
 # In[22]:
 
 
-chosen_object = None
-
-# Prioritize choosing objects that look like the required one
-required_label = message_parser.get_object_darknet()
-if required_label:
-    rospy.loginfo("Object to be delivered is: {}".format(required_label))
-
-# Choose closest object that fits in robot's hand by default otherwise
-uid_by_distance = []
-for uid, obj in current_objects.items():
-    convex_footprint = MultiPoint(obj.bb_coords_2d).convex_hull
-    if isinstance(convex_footprint, Polygon):
-        obj_radius = utils.get_circumscribed_radius(convex_footprint)
-    else:
-        obj_radius = 0.00000000001
-    if obj_radius <= robot.GRASP_RADIUS:
-        x, _= robot.get_diff_between("base_link", obj.name)
-        uid_by_distance.append((uid, x))
-        if required_label and obj.label == required_label:
-            chosen_object = obj
-
-if not chosen_object:
-    uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
-    if uid_by_distance:
-        chosen_object = current_objects[uid_by_distance[0][0]]
-
-if not chosen_object:
-    rospy.logwarn("No object was able to be chosen. Stopping robot.")
-    sys.exit(0)
+chosen_object = get_chosen_object(current_objects)
 
 
 # In[23]:
@@ -394,11 +431,20 @@ def pick_object_from_shelf(obj):
     # Keep object close to your heart
     robot.move_arm_init()
 
+    if robot.is_hand_fully_closed():
+        return False
+
+    return True
+
 
 # In[24]:
 
 
-pick_object_from_shelf(chosen_object)
+is_pick_success = pick_object_from_shelf(chosen_object)
+if not is_pick_success:
+    current_objects = scene.wait_for_one_detection(use_labels=True)
+    chosen_object = get_chosen_object(current_objects)
+    is_pick_success = pick_object_from_shelf(chosen_object)
 
 
 # In[25]:
@@ -438,13 +484,13 @@ else:
 robot.move_arm_neutral()
 
 
-# In[30]:
+# In[29]:
 
 
 # To save points published in Rviz, simply use the following commands
 
 
-# In[31]:
+# In[30]:
 
 
 # saver = PointsSaver()
@@ -484,6 +530,19 @@ robot.move_arm_neutral()
 # In[ ]:
 
 
+robot.open_hand()
+
+
+# In[ ]:
+
+
+robot.gripper.get_current_joint_values()
+
+
+# In[ ]:
+
+
+import numpy as np
 
 
 
