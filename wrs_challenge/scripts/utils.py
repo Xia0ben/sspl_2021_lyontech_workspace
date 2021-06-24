@@ -19,10 +19,8 @@ import copy
 from sklearn.cluster import DBSCAN
 import traceback
 from future.utils import with_metaclass
-from shapely.geometry import Polygon, MultiPoint, Point
+from shapely.geometry import Polygon, MultiPoint
 from shapely import affinity
-import matplotlib.pyplot as plt
-from aabbtree import AABB, AABBTree
 
 
 from geometry_msgs.msg import PoseStamped, Quaternion, TransformStamped, Twist, PointStamped
@@ -64,6 +62,7 @@ TABOO_AREA_POLYGON = Polygon(SAVED_TABOO_AREA)
 
 OTHER_POLYGONS = {1: RIGHT_WALL_POLYGON, 2: LEFT_WALL_POLYGON}
 
+
 def get_current_time_sec():
     return rospy.Time.now().to_sec()
 
@@ -104,427 +103,24 @@ def set_polygon_pose(polygon, init_polygon_pose, end_polygon_pose, rotation_cent
     return rotate_then_translate_polygon(polygon, translation, rotation, rotation_center)
 
 
+def get_circumscribed_radius(polygon):
+    center = list(polygon.centroid.coords)[0]
+    points = list(polygon.exterior.coords)
+    circumscribed_radius = 0.
+    for point in points:
+        circumscribed_radius = max(circumscribed_radius, euclidean_distance(center, point))
+    return circumscribed_radius
+
+
 def euclidean_distance(a, b):
     return math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
 
 
-
-
-
-class Action:
-
-    def __init__(self):
-        pass
-
-
-class Rotation(Action):
-
-    def __init__(self, angle, center):
-        Action.__init__(self)
-        self.angle = angle
-        self.center = center
-
-    def apply(self, polygon):
-        return affinity.rotate(geom=polygon, angle=self.angle, origin=self.center, use_radians=False)
-
-
-class Translation(Action):
-
-    def __init__(self, translation_vector):
-        Action.__init__(self)
-        self.translation_vector = translation_vector
-
-    def apply(self, polygon):
-        return affinity.translate(geom=polygon, xoff=self.translation_vector[0], yoff=self.translation_vector[1], zoff=0.)
-
-
-def bounds(points):
-    minx, miny, maxx, maxy = float("inf"), float("inf"), -float("inf"), -float("inf")
-    for point in points:
-        minx, miny, maxx, maxy = min(minx, point[0]), min(miny, point[1]), max(maxx, point[0]), max(maxy, point[1])
-    return minx, miny, maxx, maxy
-
-
-def rotate(point, angle, center, radius=None, radians=False):
-    if not radius:
-        radius = math.sqrt((point[0] - center[0]) ** 2 + (point[1] - center[1]) ** 2)
-    if not radians:
-        angle = math.radians(angle)
-    angle += math.atan2((point[1] - center[1]), (point[0] - center[0]))
-    return center[0] + radius * math.cos(angle), center[1] + radius * math.sin(angle)
-
-
-def arc_bounding_box(point_a, rot_angle, center, point_b=None, point_c=None, bb_type='minimum_rotated_rectangle'):
-    """
-    Computes the bounding box of the arc formed by the rotation of a point A around a given center
-    :param point_a: Initial point state
-    :type point_a: (float, float)
-    :param rot_angle: rotation angle in degrees.
-    :type rot_angle: float
-    :param center: rotation origin point
-    :type center: (float, float)
-    :param point_b: Final point state after rotation, can be provided to accelerate computation
-    :type point_b: (float, float)
-    :param point_c: Middle point state after rotation, can be provided to accelerate computation
-    :type point_c: (float, float)
-    :param bb_type: Type of bounding box, either 'minimum_rotated_rectangle' or 'aabbox', first one is most accurate
-    :type bb_type: str
-    :return: Return a list of four points coordinates corresponding to the bounding box
-    :rtype: [(float, float), (float, float), (float, float), (float, float)]
-    """
-    if not point_b:
-        r = math.sqrt((point_a[0] - center[0]) ** 2 + (point_a[1] - center[1]) ** 2)
-        point_b = rotate(point_a, rot_angle, center, radius=r)
-    else:
-        r = None
-
-    if -1.e-15 < rot_angle < 1.e-15:
-        # It means that there is no movement, return only A
-        return [point_a]
-    elif -180. <= rot_angle <= 180.:
-        # If the arc is less than a half circle
-
-        # Compute middle point C
-        if not point_c:
-            point_c = rotate(point_a, rot_angle / 2., center)
-
-        if bb_type is 'minimum_rotated_rectangle':
-            # The minimum rotated rectangle's corners are points A, B, D and E
-            # D and E are the intersection points between the line parallel to [AB] passing by C, and respectively,
-            # the lines perpendicular to [AB] passing by A and B.
-            x_b_min_a, y_b_min_a = (point_b[0] - point_a[0]), (point_b[1] - point_a[1])
-            if -1.e-15 < x_b_min_a < 1.e-15:
-                # Special case where [AB] is vertical
-                point_d, point_e = (point_c[0], point_a[1]), (point_c[0], point_b[1])
-            else:
-                # General case
-                m_ab = y_b_min_a / x_b_min_a  # [AB]'s slope = [DC]'s slope
-                if -1.e-15 < m_ab < 1.e-15:
-                    # Special case where [AB] is horizontal
-                    point_d, point_e = (point_a[0], point_c[1]), (point_b[0], point_c[1])
-                else:
-                    b_dc = point_c[1] - m_ab * point_c[0]
-                    m_ad = 0. if m_ab >= 1e15 else -1. / m_ab
-                    b_ad = point_a[1] - m_ad * point_a[0]
-                    xd = (b_ad - b_dc) / (m_ab - m_ad)
-                    yd = xd * m_ab + b_dc
-                    point_d = (xd, yd)
-                    # C is the midpoint between D and E, allowing us to compute E
-                    point_e = (2. * point_c[0] - point_d[0], 2. * point_c[1] - point_d[1])
-            return [point_a, point_b, point_d, point_e]
-        elif bb_type is 'aabbox':
-            # The aabb corners are simply the bounds of points A, B and C.
-            minx, miny, maxx, maxy = bounds([point_a, point_b, point_c])
-            return [(minx, miny), (minx, maxy), (maxx, maxy), (maxx, miny)]
-    elif -360. < rot_angle < 360.:
-        # If the arc is greater than a half circle but not a circle
-        # then we have 5 extremal points : A, B, C, D and E.
-        # C is the arc middle point
-        # D and E are the intersection points between the circle's equation and the ray that is perpendicular
-        # to the ray passing through C
-
-        # Compute middle point C and the radius if not already computed
-        if not r:
-            r = math.sqrt((point_a[0] - center[0]) ** 2 + (point_a[1] - center[1]) ** 2)
-        if not point_c:
-            point_c = rotate(point_a, rot_angle / 2., center, radius=r)
-
-        # Compute the slope of the ray passing through C
-        m1 = (point_c[1] - center[1]) / (point_c[0] - center[0])
-
-        if -1.e-15 < m1 < 1.e-15:
-            # If the ray passing through C IS horizontal
-
-            # Line terms of the ray that is perpendicular to the ray passing through C (x=p2 is vertical line equation)
-            p2 = center[0]
-
-            # Terms of the equation to solve for x coordinate of points D and E
-            a = 1.
-            b = -2. * center[1]
-            c = center[0] ** 2 + center[1] ** 2 + p2 ** 2 - 2. * center[0] * p2 - r ** 2
-
-            # Solve the equation to get the coordinates of points D and E
-            discriminant = (b ** 2) - (4 * a * c)
-
-            yd = (-b - math.sqrt(discriminant)) / (2 * a)
-            ye = (-b + math.sqrt(discriminant)) / (2 * a)
-
-            xd = center[0]
-            xe = center[0]
-
-            point_d, point_e = (xd, yd), (xe, ye)
-
-            # Now simply return the proper bounding box englobing A, B, C, D and E
-            bb_points_x = [
-                point_c[0],
-                point_c[0],
-                point_a[0],
-                point_a[0]
-            ]
-            bb_points_y = [
-                point_d[1],
-                point_e[1],
-                point_e[1],
-                point_d[1]
-            ]
-            if bb_type is 'minimum_rotated_rectangle':
-                return list(zip(bb_points_x, bb_points_y))
-            elif bb_type is 'aabbox':
-                minx, miny, maxx, maxy = bounds(list(zip(bb_points_x, bb_points_y)))
-                return [(minx, miny), (minx, maxy), (maxx, maxy), (maxx, miny)]
-        else:
-            # If the ray passing through C is not horizontal (GENERAL CASE)
-
-            # Line terms of the ray that is perpendicular to the ray passing through C
-            m2 = 0. if m1 >= 1e15 else -1. / m1  # If ray passing through C is vertical, perpendicular is horizontal
-            p2 = center[1] - m2 * center[0]
-
-            # Terms of the equation to solve for x coordinate of points D and E
-            a = 1. + m2 ** 2
-            b = m2 * (2. * p2 - 2. * center[1]) - 2. * center[0]
-            c = center[0] ** 2 + p2 ** 2 + center[1] ** 2 - 2. * p2 * center[1] - r ** 2
-
-            # Solve the equation to get the coordinates of points D and E
-            discriminant = (b ** 2) - (4. * a * c)
-
-            xd = (-b - math.sqrt(discriminant)) / (2. * a)
-            xe = (-b + math.sqrt(discriminant)) / (2. * a)
-
-            yd = xd * m2 + p2
-            ye = xe * m2 + p2
-
-            point_d, point_e = (xd, yd), (xe, ye)
-
-            # Now simply return the proper bounding box englobing A, B, C, D and E
-            m_lc = m2
-            p_lc = point_c[1] - m_lc * point_c[0]
-
-            m_ld = m1
-            p_ld = point_d[1] - m_ld * point_d[0]
-
-            m_le = m1
-            p_le = point_e[1] - m_le * point_e[0]
-
-            m_lab = m2
-            p_lab = point_a[1] - m_lab * point_a[0]
-
-            bb_points_x = [
-                (p_lc - p_ld) / (m_ld - m_lc),
-                (p_lc - p_le) / (m_le - m_lc),
-                (p_lab - p_le) / (m_le - m_lab),
-                (p_lab - p_ld) / (m_ld - m_lab)
-            ]
-            bb_points_y = [
-                m_lc * bb_points_x[0] + p_lc,
-                m_lc * bb_points_x[1] + p_lc,
-                m_lab * bb_points_x[2] + p_lab,
-                m_lab * bb_points_x[3] + p_lab
-            ]
-            if bb_type is 'minimum_rotated_rectangle':
-                return list(zip(bb_points_x, bb_points_y))
-            elif bb_type is 'aabbox':
-                minx, miny, maxx, maxy = bounds(list(zip(bb_points_x, bb_points_y)))
-                return [(minx, miny), (minx, maxy), (maxx, maxy), (maxx, miny)]
-    else:
-        # Beyond 360 degrees, the arc is a circle: its bounding box is necessarily a square aabb
-        r = math.sqrt((point_a[0] - center[0]) ** 2 + (point_a[1] - center[1]) ** 2)
-        return [
-            (center[0] - r, center[1] - r), (center[0] + r, center[1] - r),
-            (center[0] + r, center[1] + r), (center[0] - r, center[1] + r)
-        ]
-
-
-def bounding_boxes_vertices(action_sequence, polygon_sequence, bb_type='minimum_rotated_rectangle'):
-    """
-    Returns for each action the pointclouds of the bounding boxes that cover each polygon's point trajectory
-    during the action.
-    :param action_sequence:
-    :type action_sequence:
-    :param polygon_sequence:
-    :type polygon_sequence:
-    :param bb_type: Type of bounding box, either 'minimum_rotated_rectangle' or 'aabbox', first one is most accurate
-    :type bb_type: str
-    :return:
-    :rtype:
-    """
-    bb_vertices = []
-    for index, action in enumerate(action_sequence):
-        init_poly_coords = list(polygon_sequence[index].exterior.coords)
-        end_poly_coords = list(polygon_sequence[index + 1].exterior.coords)
-        action_bb_vertices = []
-        if isinstance(action, Translation):
-            for coord in init_poly_coords:
-                action_bb_vertices.append(coord)
-            for coord in end_poly_coords:
-                action_bb_vertices.append(coord)
-        elif isinstance(action, Rotation):
-            for point_a, point_b in zip(init_poly_coords, end_poly_coords):
-                bb = arc_bounding_box(point_a=point_a, point_b=point_b, rot_angle=action.angle, center=action.center, bb_type=bb_type)
-                for coord in bb:
-                    action_bb_vertices.append(coord)
-        else:
-            raise TypeError("Actions must be pure Translation or Rotation.")
-        bb_vertices.append(action_bb_vertices)
-    return bb_vertices
-
-
-def csv_from_bb_vertices(bb_vertices):
-    """
-    Computes the CSV (Convex Swept Volume) approximation polygon of the provided bounding boxes vertices
-    :param bb_vertices: List of Bounding boxes vertices for each action
-    :type bb_vertices:
-    :return: The CSV (Convex Swept Volume) approximation polygon
-    :rtype: shapely.geometry.Polygon
-    """
-    all_vertices = [vertex for vertices in bb_vertices for vertex in vertices]
-    return MultiPoint(all_vertices).convex_hull
-
-
-def polygon_to_aabb(polygon):
-    xmin, ymin, xmax, ymax = polygon.bounds
-    return AABB([(xmin, xmax), (ymin, ymax)])
-
-
-def polygons_to_aabb_tree(polygons):
-    aabb_tree = AABBTree()
-    for uid, polygon in polygons.items():
-        aabb_tree.add(polygon_to_aabb(polygon), uid)
-    return aabb_tree
-
-
-def check_static_collision(main_uid, polygon, other_entities_polygons, aabb_tree, ignored_uids=None, break_at_first=True, save_intersections=False):
-    aabb = polygon_to_aabb(polygon)
-    potential_collision_uids = aabb_tree.overlap_values(aabb)
-    if ignored_uids:
-        potential_collision_uids = set(potential_collision_uids).difference(set(ignored_uids))
-    if break_at_first:
-        for uid in potential_collision_uids:
-            if polygon.intersects(other_entities_polygons[uid]):
-                if save_intersections:
-                    intersection = polygon.intersection(other_entities_polygons[uid])
-                    return {main_uid: {uid}, uid: {main_uid}}, {(main_uid, uid): intersection, (uid, main_uid): intersection}
-                else:
-                    return {main_uid: {uid}, uid: {main_uid}}
-        return {}
-    else:
-        collides_with = {}
-        if save_intersections:
-            intersections = {}
-        for uid in potential_collision_uids:
-            if polygon.intersects(other_entities_polygons[uid]):
-                if save_intersections:
-                    intersection = polygon.intersection(other_entities_polygons[uid])
-                    intersections[(main_uid, uid)] = intersection
-                    intersections[(uid, main_uid)] = intersection
-
-                if main_uid in collides_with:
-                    collides_with[main_uid].add(uid)
-                else:
-                    collides_with[main_uid] = {uid}
-
-                if uid in collides_with:
-                    collides_with[uid].add(main_uid)
-                else:
-                    collides_with[uid] = {main_uid}
-
-        if save_intersections:
-            return collides_with, intersections
-        else:
-            return collides_with
-
-
-def merge_collides_with(source, other):
-    for uid, uids in other.items():
-        if uid in source:
-            source[uid].update(uids)
-            for uid_2 in uids:
-                if uid_2 in source:
-                    source[uid_2].add(uid)
-                else:
-                    source[uid_2] = {uid}
-        else:
-            source[uid] = uids
-            for uid_2 in uids:
-                if uid_2 in source:
-                    source[uid_2].add(uid)
-                else:
-                    source[uid_2] = {uid}
-    return source
-
-
-def csv_check_collisions(main_uid, other_polygons, polygon_sequence, action_sequence, id_sequence=None,
-                         bb_type='minimum_rotated_rectangle', aabb_tree=None, bb_vertices=None, csv_polygons=None,
-                         intersections=None, ignored_entities=None, display_debug=False, break_at_first=True,
-                         save_intersections=False):
-    # Initialize at first recursive iteration
-    if not aabb_tree:
-        aabb_tree = polygons_to_aabb_tree(other_polygons)
-    if not bb_vertices:
-        bb_vertices = bounding_boxes_vertices(action_sequence, polygon_sequence, bb_type)
-    if not csv_polygons:
-        csv_polygons = {}
-    if not intersections:
-        intersections = {}
-    if not id_sequence:
-        id_sequence = range(len(action_sequence))
-
-    csv_polygon = csv_from_bb_vertices(bb_vertices)
-    csv_polygons[tuple(id_sequence)] = csv_polygon
-
-    # Dichotomy-check for collision between polygon and CSV as long as:
-    # - there is no collision
-    # - AND the CSV envelops more than one action (two consecutive polygons)
-    if save_intersections:
-        collides_with, local_intersections = check_static_collision(
-            main_uid, csv_polygon, other_polygons, aabb_tree, ignored_entities, break_at_first, save_intersections
-        )
-        intersections[tuple(id_sequence)] = local_intersections
-    else:
-        collides_with = check_static_collision(
-            main_uid, csv_polygon, other_polygons, aabb_tree, ignored_entities, break_at_first, save_intersections
-        )
-
-    if collides_with:
-        if display_debug:
-            fig, ax = plt.subplots()
-            for p in polygon_sequence:
-                ax.plot(*p.exterior.xy, color='grey')
-            # for i in indexes:
-            #     ax.plot(*polygon_sequence[i].exterior.xy, color='blue')
-            for p in other_polygons.values():
-                ax.plot(*p.exterior.xy, color='black')
-            x, y = zip(*[[vertex.x, vertex.y] for vertex in bb_vertices])
-            ax.scatter(x, y, marker='x')
-            ax.plot(*csv_polygon.exterior.xy, color='green')
-            intersection = csv_polygon.intersection(other_polygons[collides_with[main_uid][0]])
-            ax.plot(*intersection.exterior.xy, color='red')
-            ax.axis('equal')
-            fig.show()
-            print("")
-
-        if len(bb_vertices) >= 2:
-            first_half_bb_vertices = bb_vertices[:len(bb_vertices) // 2]
-            second_half_bb_vertices = bb_vertices[len(bb_vertices) // 2:]
-            first_half_ids = id_sequence[:len(id_sequence) // 2]
-            second_half_ids = id_sequence[len(id_sequence) // 2:]
-            first_half_collides, first_half_collides_with, _, _, _, _ = csv_check_collisions(
-                main_uid, other_polygons, polygon_sequence, action_sequence, first_half_ids, aabb_tree=aabb_tree,
-                bb_vertices=first_half_bb_vertices, ignored_entities=ignored_entities, display_debug=display_debug,
-                break_at_first=break_at_first, bb_type=bb_type, csv_polygons=csv_polygons, intersections=intersections
-            )
-            second_half_collides, second_half_collides_with, _, _, _, _ = csv_check_collisions(
-                main_uid, other_polygons, polygon_sequence, action_sequence, second_half_ids, aabb_tree=aabb_tree,
-                bb_vertices=second_half_bb_vertices, ignored_entities=ignored_entities, display_debug=display_debug,
-                break_at_first=break_at_first, bb_type=bb_type, csv_polygons=csv_polygons, intersections=intersections
-            )
-            collides_with = merge_collides_with(first_half_collides_with, second_half_collides_with)
-            collides = first_half_collides or second_half_collides
-            return collides, collides_with, aabb_tree, csv_polygons, intersections, bb_vertices
-        else:
-            return True, collides_with, aabb_tree, csv_polygons, intersections, bb_vertices
-    else:
-        return False, collides_with, aabb_tree, csv_polygons, intersections, bb_vertices
-
+def centroid(arr):
+    length = arr.shape[0]
+    sum_x = np.sum(arr[:, 0])
+    sum_y = np.sum(arr[:, 1])
+    return sum_x/length, sum_y/length
 
 
 class Singleton(type):
@@ -538,6 +134,7 @@ class Singleton(type):
 
 class Robot(with_metaclass(Singleton)):
     JOINTS_FOR_SWIPING = [0.] + [math.radians(a) for a in [-146., 0., 53., 0., 0.]]
+    GRASP_RADIUS = 0.7
 
     def __init__(self):
         init_threads = []
@@ -718,7 +315,12 @@ class SegmentedObject:
         self.hue_avg = np.average(all_hues)
         self.hue_med = np.median(all_hues)
 
+        self.label = None
+
         self.name = "object_with_hue_{}".format(self.hue_med)
+
+    def set_label(self, label):
+        self.label = label
 
     def xyz_to_pose_stamped(self, xyz):
         pose_stamped = PoseStamped(header=self.header)
@@ -770,8 +372,11 @@ class Scene(with_metaclass(Singleton)):
     FLOOR_MIN_HUE, FLOOR_MAX_HUE = 14, 30
 
     def __init__(self, start_on_init=True):
+        self.use_labels = False
+
         self._br = tf.TransformBroadcaster()
         self.tf_listener = tf.TransformListener()
+        self.obj_detector = ObjectDetection()
 
         self._cloud_sub = None
 
@@ -786,9 +391,9 @@ class Scene(with_metaclass(Singleton)):
             self.start()
 
     def start(self):
+        with self.lock:
+            self._current_objects = None
         if not self._cloud_sub:
-            with self.lock:
-                self._current_objects = None
             self._cloud_sub = rospy.Subscriber(
                 "/hsrb/head_rgbd_sensor/depth_registered/rectified_points",
                 PointCloud2, self._cloud_cb
@@ -799,8 +404,9 @@ class Scene(with_metaclass(Singleton)):
             self._cloud_sub.unregister()
             self._cloud_sub = None
 
-    def wait_for_one_detection(self, timeout=10., sleep_duration=0.01):
+    def wait_for_one_detection(self, timeout=10., sleep_duration=0.0001, use_labels=False):
         start_time = time.time()
+        self.use_labels = use_labels
         self.start()
         current_objects = None
         now = time.time()
@@ -811,6 +417,7 @@ class Scene(with_metaclass(Singleton)):
                 time.sleep(sleep_duration)
             now = time.time()
         self.pause()
+        self.use_labels = False
         return current_objects
 
     def _cloud_cb(self, msg):
@@ -856,6 +463,24 @@ class Scene(with_metaclass(Singleton)):
 
         new_objects = {uid: SegmentedObject(uid, pixels, msg.header) for uid, pixels in uid_to_pixels.items()}
 
+        if self.use_labels:
+            # list(tuple(minx, miny, maxx, maxy, cx, cy, label, confidence))
+            detector_output = self.obj_detector.detect(image)
+#             print("detector_output: {}".format(detector_output))
+            objs_pixels_centroids = {
+                uid: centroid(np.array([pixel.pixel for pixel in obj.pixels]))
+                for uid, obj in new_objects.items()
+            }
+#             print("objs_pixels_centroids: {}".format(objs_pixels_centroids))
+            for uid, c in objs_pixels_centroids.items():
+                label_by_distance = []
+                for (minx, miny, maxx, maxy, cx, cy, label, confidence) in detector_output:
+                    if minx <= c[0] <= maxx and miny <= c[1] <= maxy:
+                        label_by_distance.append((label, euclidean_distance(c, (cx, cy))))
+                label_by_distance = sorted(label_by_distance, key=lambda tup: tup[1])
+                if label_by_distance:
+                    new_objects[uid].set_label(label_by_distance[0][0])
+
         with self.lock:
             self._current_objects = new_objects
 #             for new_uid, new_object in new_objects.items():
@@ -894,3 +519,342 @@ class InstructionListener:
                 else:
                     continue
             return None
+
+
+class ObjectDetection(object):
+    def __init__(self):
+        # Get real-time video stream through opencv
+        LABELS_FILE = '/workspace/src/wrs_challenge/scripts/ycb_tinyyolo/ycb_simu.names'
+        CONFIG_FILE = '/workspace/src/wrs_challenge/scripts/ycb_tinyyolo/yolov3-tiny-ycb_simu_test.cfg'
+        WEIGHTS_FILE = '/workspace/src/wrs_challenge/scripts/ycb_tinyyolo/yolov3-tiny-ycb_simu_best_004.weights'
+        self.CONFIDENCE_THRESHOLD = 0.3
+
+        self.H = None
+        self.W = None
+
+        self.LABELS = open(LABELS_FILE).read().strip().split('\n')
+        np.random.seed(4)
+        self.COLORS = np.random.randint(0, 255, size=(len(self.LABELS),
+                3), dtype='uint8')
+
+        self.net = cv2.dnn.readNetFromDarknet(CONFIG_FILE, WEIGHTS_FILE)
+
+        self.ln = self.net.getLayerNames()
+        self.ln = [
+            self.ln[i[0] - 1] for i in self.net.getUnconnectedOutLayers()
+        ]
+
+    def detect(self, image):
+        data = []
+        blob = cv2.dnn.blobFromImage(image, 1 / 255.0, (416, 416),
+                swapRB=True, crop=False)
+        self.net.setInput(blob)
+        if self.W is None or self.H is None:
+            (self.H, self.W) = image.shape[:2]
+
+        layerOutputs = self.net.forward(self.ln)
+
+            # initialize our lists of detected bounding boxes, confidences, and
+            # class IDs, respectively
+
+        boxes = []
+        confidences = []
+        classIDs = []
+
+            # loop over each of the layer outputs
+
+        for output in layerOutputs:
+
+                # loop over each of the detections
+
+            for detection in output:
+
+                    # extract the class ID and confidence (i.e., probability) of
+                    # the current object detection
+
+                scores = detection[5:]
+                classID = np.argmax(scores)
+                confidence = scores[classID]
+
+                    # filter out weak predictions by ensuring the detected
+                    # probability is greater than the minimum probability
+
+                if confidence > self.CONFIDENCE_THRESHOLD:
+
+                        # scale the bounding box coordinates back relative to the
+                        # size of the image, keeping in mind that YOLO actually
+                        # returns the center (x, y)-coordinates of the bounding
+                        # box followed by the boxes' width and height
+
+                    box = detection[0:4] * np.array([self.W, self.H,
+                            self.W, self.H])
+                    (centerX, centerY, width, height) = box.astype('int'
+                            )
+
+                        # use the center (x, y)-coordinates to derive the top and
+                        # and left corner of the bounding box
+
+                    x = int(centerX - width / 2)
+                    y = int(centerY - height / 2)
+
+                        # update our list of bounding box coordinates, confidences,
+                        # and class IDs
+
+                    boxes.append([x, y, int(width), int(height)])
+                    confidences.append(float(confidence))
+                    classIDs.append(classID)
+
+            # apply non-maxima suppression to suppress weak, overlapping bounding
+            # boxes
+
+        idxs = cv2.dnn.NMSBoxes(boxes, confidences,
+                                self.CONFIDENCE_THRESHOLD,
+                                self.CONFIDENCE_THRESHOLD)
+
+            # ensure at least one detection exists
+
+        if len(idxs) > 0:
+
+                # loop over the indexes we are keeping
+
+            for i in idxs.flatten():
+
+                    # extract the bounding box coordinates
+
+                (miny, minx) = (boxes[i][0], boxes[i][1])
+                (maxy, maxx) = (boxes[i][0] + boxes[i][2], boxes[i][1] + boxes[i][3])
+                cx, cy = centroid(np.array([(minx, miny), (maxx, maxy)]))
+
+                tuple_i = (minx, miny, maxx, maxy, cx, cy, self.LABELS[classIDs[i]], confidences[i])
+                data.append(tuple_i)
+
+            # print(data)
+
+        return data
+
+class MessageParser():
+    def __init__(self):
+        self.lock = threading.Lock()
+
+        self.person = "pending"
+        self.object = "pending"
+        self.object_num = -1
+        self.object_darknet = "pending"
+
+        self.load_dictionnaries()
+
+        rospy.Subscriber("/message", String, self.message)
+
+    def get_person(self):
+        with self.lock:
+            return self.person
+
+    def get_object(self):
+        with self.lock:
+            return self.object
+
+    def get_object_num(self):
+        with self.lock:
+            return self.object_num
+
+    def get_object_darknet(self):
+        with self.lock:
+            return self.object_darknet
+
+    # /message Topic callback
+    def message(self, msg):
+        with self.lock:
+            if("left" in msg.data.lower()):
+                self.person = "left"
+            elif("right" in msg.data.lower()):
+                self.person = "right"
+            else:
+                self.person = "undefined"
+
+            num, name = self.match_object(msg.data)
+
+            if( num == 0 ):
+                self.object = "undefined"
+                self.object_darknet = "undefined"
+            else:
+                self.object = name
+
+            self.object_num = num
+
+            if( num > 0 ):
+                self.object_darknet = self.ycb_num_to_darknet_label(num)
+
+    # check if there is an object name of the ycb dataset is in the /message request
+    def match_object(self, smsg):
+
+        match = False
+
+        for num, names in self.ycb_number_to_ycb_names.items():
+            if( len(names) > 0 ):
+                for name in names:
+                    if( name.lower() in smsg.lower() ):
+                        return num, name
+                    if( name.replace('_',' ').lower() in smsg.lower() ):
+                        return num, name
+
+        return 0, "undefined"
+
+    def ycb_num_to_darknet_label(self, num):
+        # list out keys and values separately
+        key_list = list(self.darknet_label_to_ycb_number.keys())
+        val_list = list(self.darknet_label_to_ycb_number.values())
+
+        # print key with val num
+        try:
+            position = val_list.index(num)
+            return key_list[position]
+        except:
+            return "undefined"
+
+    # Load YCB label dictionnary
+    def load_dictionnaries(self):
+
+        self.ycb_number_to_ycb_names =    \
+            {
+                1:["chips_can"],
+                2:["master_chef_can", "coffee"],
+                3:["cracker_box", "Cheez-it"],
+                4:["sugar_box"],
+                5:["tomato_soup_can"],
+                6:["mustard_bottle"],
+                7:["tuna_fish_can"],
+                8:["pudding_box"],
+                9:["gelatin_box"],
+                10:["potted_meat_can"],
+                11:["banana"],
+                12:["strawberry"],
+                13:["apple"],
+                14:["lemon"],
+                15:["peach"],
+                16:["pear"],
+                17:["orange"],
+                18:["plum"],
+                19:["pitcher_base"],
+                20:[],
+                21:["bleach_cleanser"],
+                22:["windex_bottle"],
+                23:["wine_glass"],
+                24:["bowl"],
+                25:["mug"],
+                26:["sponge"],
+                27:["skillet"],
+                28:["skillet_lid"],
+                29:["plate"],
+                30:["fork"],
+                31:["spoon"],
+                32:["knife"],
+                33:["spatula"],
+                34:[],
+                35:["power_drill"],
+                36:["wood_block"],
+                37:["scissors"],
+                38:["padlock"],
+                39:["key"],
+                40:["large_marker"],
+                41:["small_marker"],
+                42:["adjustable_wrench"],
+                43:["phillips_screwdriver"],
+                44:["flat_screwdriver"],
+                45:[],
+                46:["plastic_bolt"],
+                47:["plastic_nut"],
+                48:["hammer"],
+                49:["small_clamp"],
+                50:["medium_clamp"],
+                51:["large_clamp"],
+                52:["extra_large_clamp"],
+                53:["mini_soccer_ball"],
+                54:["softball"],
+                55:["baseball"],
+                56:["tennis_ball"],
+                57:["racquetball"],
+                58:["golf_ball"],
+                59:["chain"],
+                60:[],
+                61:["foam_brick"],
+                62:["dice"],
+                63:["marbles", "a_marbles", "b_marbles", "c_marbles", "d_marbles", "e_marbles", "f_marbles"],
+                62:[],
+                63:[],
+                64:[],
+                65:["cups", "a_cups", "b_cups", "c_cups", "d_cups", "e_cups","f_cups","g_cups","h_cups","i_cups","j_cups"],
+                66:[],
+                67:[],
+                68:[],
+                69:[],
+                70:["colored_wood_blocks", "a_colored_wood_blocks", "b_colored_wood_blocks"],
+                71:["nine_hole_peg_test"],
+                72:["toy_airplane", "a_toy_airplane", "b_toy_airplane", "c_toy_airplane", "d_toy_airplane", "e_toy_airplane", "f_toy_airplane", "g_toy_airplane", "h_toy_airplane", "i_toy_airplane","j_toy_airplane", "k_toy_airplane"],
+                73:["a_lego_duplo","b_lego_duplo", "c_lego_duplo", "d_lego_duplo", "e_lego_duplo", "f_lego_duplo", "g_lego_duplo", "h_lego_duplo", "i_lego_duplo", "j_lego_duplo", "k_lego_duplo", "l_lego_duplo", "m_lego_duplo"],
+                74:[],
+                75:[],
+                76:["timer"],
+                77:["rubiks_cube"]
+            }
+
+
+        self.darknet_label_to_ycb_number = \
+            {
+                "cracker"               : 3 ,
+                "sugar"                 : 4 ,
+                "pudding"               : 8 ,
+                "gelatin"               : 9 ,
+                "pottedmeat"            : 10,
+                "coffee"                : 2 ,
+                "tuna"                  : 7 ,
+                "chips"                 : 1 ,
+                "mustard"               : 6 ,
+                "tomatosoup"            : 5 ,
+                "banana"                : 11,
+                "strawberry"            : 12,
+                "apple"                 : 13,
+                "lemon"                 : 14,
+                "peach"                 : 15,
+                "pear"                  : 16,
+                "orange"                : 17,
+                "plum"                  : 18,
+                "windex"                : 22,
+                "bleach"                : 21,
+                "pitcher"               : 19,
+                "plate"                 : 29,
+                "bowl"                  : 24,
+                "fork"                  : 30,
+                "spoon"                 : 26,
+                "spatula"               : 33,
+                "wineglass"             : 23,
+                "cup"                   : 65,
+                "largemarker"           : 40,
+                "smallmarker"           : 41,
+                "padlocks"              : 38,
+                "bolt"                  : 46,
+                "nut"                   : 47,
+                "clamp"                 : 49,
+                "soccerball"            : 53,
+                "baseball"              : 55,
+                "tennisball"            : 56,
+                "golfball"              : 58,
+                "foambrick"             : 61,
+                "dice"                  : 62,
+                "rope"                  : -1,
+                "chain"                 : 59,
+                "rubikscube"            : 77,
+                "coloredwoodblock"      : 70,
+                "peghole"               : 71,
+                "timer"                 : 76,
+                "airplane"              : 72,
+                "tshirt"                : -1,
+                "magazine"              : -1,
+                "creditcard"            : -1,
+                "legoduplo"             : 73,
+                "sponge"                : 26,
+                "coloredwoodblockpot"   : 70,
+                "softball"              : 54,
+                "racquetball"           : 57,
+                "marbles"               : 63,
+                "mug"                   : 25
+            }

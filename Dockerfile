@@ -47,7 +47,7 @@ RUN apt-get update && \
     apt-get install -y python-pip python-tk ros-$ROS_DISTRO-rospy-message-converter && \
     apt-get clean
 
-RUN pip install scipy scikit-learn colour shapely aabbtree future matplotlib
+RUN pip install scipy scikit-learn colour shapely aabbtree future matplotlib opencv-contrib-python==4.0.0.21
 
 # RUN apt-get update && \
 #     apt-get install -y python3-pip && \
