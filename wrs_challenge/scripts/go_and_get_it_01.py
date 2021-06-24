@@ -1,30 +1,32 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# ### Dependencies to add :
-# 
-# #### apt
-# 
-# sudo apt-get install -y ros-melodic-rospy-message-converter
-# 
-# #### pip
-# 
-# pip install scipy scikit-learn colour shapely aabbtree future matplotlib opencv-contrib-python==4.0.0.21
+# In[ ]:
 
-# In[1]:
+
+get_ipython().run_cell_magic(u'script', u'bash', u'sudo apt-get update && sudo apt-get install -y ros-melodic-rospy-message-converter')
+
+
+# In[ ]:
+
+
+get_ipython().run_cell_magic(u'script', u'bash', u'pip install scipy scikit-learn colour shapely aabbtree future matplotlib opencv-contrib-python==4.0.0.21')
+
+
+# In[ ]:
 
 
 get_ipython().run_cell_magic(u'script', u'bash --bg', u'rviz -d /workspace/notebooks/data/3_navigation.rviz > /dev/null 2>&1')
 
 
-# In[2]:
+# In[3]:
 
 
 get_ipython().magic(u'matplotlib inline')
 import matplotlib.pyplot as plt
 
 
-# In[3]:
+# In[4]:
 
 
 import math
@@ -61,20 +63,20 @@ message_parser = utils.MessageParser()
 rospy.loginfo("Imports done, robot initialized.")
 
 
-# In[4]:
+# In[5]:
 
 
 utils.NavGoalToJsonFileSaver("saved_msg.json")
 
 
-# In[29]:
+# In[6]:
 
 
 with open("saved_msg.json") as f:
     print(f.read())
 
 
-# In[6]:
+# In[7]:
 
 
 beside_bins_goal_str = '{"header": {"stamp": {"secs": 182, "nsecs": 889000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 182, "nsecs": 889000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 0.31022635102272034, "x": 2.4421634674072266, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": -0.0026041090858226357, "w": 0.9999966093021861}}}}}' 
@@ -90,7 +92,7 @@ beside_bins_turn_goal = json_message_converter.convert_json_to_ros_message('move
 robot.move_base_actual_goal(beside_bins_turn_goal)
 
 
-# In[7]:
+# In[8]:
 
 
 obstacle_avoidance_area_goal_str = '{"header": {"stamp": {"secs": 1218, "nsecs": 867000000}, "frame_id": "", "seq": 21}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1218, "nsecs": 867000000}, "frame_id": "map", "seq": 21}, "pose": {"position": {"y": 1.7440035343170166, "x": 2.618055582046509, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7167735161966976, "w": 0.697306049363565}}}}}'
@@ -99,19 +101,19 @@ obstacle_avoidance_area_goal = json_message_converter.convert_json_to_ros_messag
 robot.move_base_actual_goal(obstacle_avoidance_area_goal)
 
 
-# In[8]:
+# In[9]:
 
 
 robot.move_head_tilt(-1)
 
 
-# In[9]:
+# In[10]:
 
 
 current_objects = scene.wait_for_one_detection()
 
 
-# In[10]:
+# In[11]:
 
 
 robot.tf_listener.waitForTransform("map", "base_link", rospy.Time(0),rospy.Duration(4.0))
@@ -133,7 +135,7 @@ for uid, obj in current_objects.items():
 uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
 
 
-# In[11]:
+# In[12]:
 
 
 def pick_object_away(obj):
@@ -219,7 +221,7 @@ def pick_object_away(obj):
     robot.base.go()
 
 
-# In[12]:
+# In[13]:
 
 
 for (uid, _) in uid_by_distance:
@@ -227,64 +229,66 @@ for (uid, _) in uid_by_distance:
     pick_object_away(obj)
 
 
-# In[13]:
+# In[14]:
 
 
 robot.move_arm_init()
 robot.close_hand()
 
 
-# In[14]:
+# In[15]:
 
 
 robot.move_head_tilt(-0.9)
 
 
-# In[15]:
+# In[16]:
 
 
 enter_room_02_goal_str = '{"header": {"stamp": {"secs": 688, "nsecs": 512000000}, "frame_id": "", "seq": 11}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 688, "nsecs": 512000000}, "frame_id": "map", "seq": 11}, "pose": {"position": {"y": 2.9992051124572754, "x": 2.3737993240356445, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7056854446361143, "w": 0.708525266471655}}}}}'
 enter_room_02_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', enter_room_02_goal_str).goal
 
 
-# In[16]:
+# In[17]:
 
 
 robot.move_base_actual_goal(enter_room_02_goal)
 
 
-# In[17]:
+# In[18]:
 
 
 in_front_shelf_goal_str = '{"header": {"stamp": {"secs": 607, "nsecs": 362000000}, "frame_id": "", "seq": 6}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 607, "nsecs": 353000000}, "frame_id": "map", "seq": 6}, "pose": {"position": {"y": 3.7436118125915527, "x": 2.2750515937805176, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7071067966408575, "w": 0.7071067657322372}}}}}'
 in_front_shelf_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_shelf_goal_str).goal
 
 
-# In[18]:
+# In[19]:
 
 
 robot.move_base_actual_goal(in_front_shelf_goal)
 
 
-# In[19]:
+# In[20]:
 
 
 robot.move_head_tilt(-0.3)
 
 
-# In[20]:
+# In[21]:
 
 
 current_objects = scene.wait_for_one_detection(use_labels=True)
 
 
-# In[21]:
+# In[22]:
 
 
 chosen_object = None
 
 # Prioritize choosing objects that look like the required one
 required_label = message_parser.get_object_darknet()
+if required_label:
+    rospy.loginfo("Object to be delivered is: {}".format(required_label))
 
 # Choose closest object that fits in robot's hand by default otherwise
 uid_by_distance = []
@@ -310,7 +314,7 @@ if not chosen_object:
     sys.exit(0)
 
 
-# In[22]:
+# In[23]:
 
 
 FIRST_SHELF_LINEAR_JOINT_HEIGHT = 0.21
@@ -354,7 +358,34 @@ def pick_object_from_shelf(obj):
     robot.base.go()
     
     # Translate to object
-    obj_o_x, obj_o_y = robot.get_diff_between("odom", obj.name)
+#     obj_o_x, obj_o_y = robot.get_diff_between("odom", obj.name)
+#     print("obj_o_x, obj_o_y: {}, {}".format(obj_o_x, obj_o_y))
+    r_x, r_y = robot.get_diff_between("map", "hand_palm_link")
+#     print("r_x, r_y: {}, {}".format(r_x, r_y))
+    min_distance_to_robot = float("inf")
+    nearest_o_x, nearest_o_y = robot.get_diff_between("map", obj.name)
+#     print("nearest_o_x, nearest_o_y: {}, {}".format(nearest_o_x, nearest_o_y))
+    for pixel in obj.pixels:
+        x, y, z = pixel.x, pixel.y, pixel.z
+        dist = utils.euclidean_distance((r_x, r_y), (x, y))
+        if dist < min_distance_to_robot:
+            min_distance_to_robot = dist
+            nearest_o_x, nearest_o_y, nearest_o_z = x, y, z
+#     print("nearest_o_x, nearest_o_y, nearest_o_z: {}, {}".format(nearest_o_x, nearest_o_y, nearest_o_z))
+            
+    
+    robot.tf_listener.waitForTransform("/odom", "/map", rospy.Time(0),rospy.Duration(4.0))
+    point=PointStamped()
+    point.header.frame_id = "map"
+    point.header.stamp =rospy.Time(0)
+    point.point.x=nearest_o_x
+    point.point.y=nearest_o_y
+    point.point.z=nearest_o_z
+    p=robot.tf_listener.transformPoint("odom", point)
+    obj_o_x, obj_o_y = p.point.x, p.point.y
+#     print("obj_o_x, obj_o_y: {}, {}".format(obj_o_x, obj_o_y))
+    ######
+    
     ho_x, ho_y = robot.get_diff_between("odom", "hand_palm_link")
     joints_for_catching_to_object = robot.base.get_current_joint_values()
     joints_for_catching_to_object[0] += obj_o_y - ho_y
@@ -386,7 +417,7 @@ def pick_object_from_shelf(obj):
     robot.move_arm_init()
 
 
-# In[23]:
+# In[24]:
 
 
 pick_object_from_shelf(chosen_object)
@@ -405,10 +436,13 @@ move_between_humans_goal = json_message_converter.convert_json_to_ros_message('m
 robot.move_base_actual_goal(move_between_humans_goal)
 
 
-# In[ ]:
+# In[27]:
 
 
 latest_human_side_instruction = message_parser.get_person()
+if latest_human_side_instruction:
+    rospy.loginfo("Object must be delivered to human: {}".format(latest_human_side_instruction))
+
 if latest_human_side_instruction == "right":
     in_front_human_right_goal_str = '{"header": {"stamp": {"secs": 176, "nsecs": 562000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 176, "nsecs": 562000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 3.909142017364502, "x": 0.40349310636520386, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999394114821857, "w": -0.011007877391217903}}}}}'
     in_front_human_right_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_right_goal_str).goal
@@ -420,19 +454,19 @@ else:
     robot.move_base_actual_goal(in_front_human_left_goal)
 
 
-# In[30]:
+# In[28]:
 
 
 robot.move_arm_neutral()
 
 
-# In[ ]:
+# In[30]:
 
 
 # To save points published in Rviz, simply use the following commands
 
 
-# In[ ]:
+# In[31]:
 
 
 # saver = PointsSaver()
@@ -467,4 +501,16 @@ robot.move_arm_neutral()
 #     p=robot.tf_listener.transformPoint("base_link", point)
 #     transformed_coords.append((p.point.x, p.point.y))
 # transformed_coords
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
