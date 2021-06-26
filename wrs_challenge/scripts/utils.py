@@ -24,7 +24,7 @@ from shapely import affinity
 
 
 from geometry_msgs.msg import PoseStamped, Quaternion, TransformStamped, Twist, PointStamped
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseActionGoal 
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseActionGoal
 from sensor_msgs.msg import LaserScan, PointCloud2
 from std_msgs.msg import Header, String
 
@@ -150,7 +150,7 @@ class TimeWatchDogThread(threading.Thread):
                 os._exit(1)
             else:
                 time.sleep(1)
-            
+
 
 class Singleton(type):
     _instances = {}
@@ -313,16 +313,16 @@ class Robot(with_metaclass(Singleton)):
         goal.target_pose.pose.orientation.z = transform[1][2]
         goal.target_pose.pose.orientation.w = transform[1][3]
         return self.move_base_actual_goal(goal, 3.)
-    
+
     def get_diff_between(self, target_frame, source_frame):
         self.tf_listener.waitForTransform(target_frame, source_frame, rospy.Time(0),rospy.Duration(4.0))
         transform = self.tf_listener.lookupTransform(target_frame, source_frame, rospy.Time(0))
         return transform[0][0], transform[0][1]
-    
+
     def move_arm_neutral(self):
         self.arm.set_named_target('neutral')
         return self.arm.go()
-    
+
     def move_arm_init(self):
         self.arm.set_named_target('go')
         return self.arm.go()
@@ -333,21 +333,21 @@ class Robot(with_metaclass(Singleton)):
 
     def open_hand(self):
         return self.move_hand(1)
-    
+
     def close_hand(self):
         return self.move_hand(0)
-    
+
     def is_hand_fully_closed(self):
         return all(np.isclose(self.gripper.get_current_joint_values(), self.FULLY_CLOSED_GRIPPER_JOINTS, atol=0.05))
 
     def move_head_tilt(self, v):
         self.head.set_joint_value_target("head_tilt_joint", v)
         return self.head.go()
-    
+
     def move_arm_to_swiping_pose(self):
         self.arm.set_joint_value_target(self.JOINTS_FOR_SWIPING)
         return self.arm.go()
-    
+
     def shake_wrist(self):
         arm_joints = self.arm.get_current_joint_values()
         arm_joints[2] += math.radians(10)
@@ -363,17 +363,17 @@ class Robot(with_metaclass(Singleton)):
         self.arm.set_joint_value_target(arm_joints)
         self.arm.go()
 
-    
+
 class PointsSaver:
     def __init__(self):
         self.coords = []
         self.topic_sub = rospy.Subscriber("/clicked_point", PointStamped, callback=self.save_cb)
         self.lock = threading.Lock()
-        
+
     def save_cb(self, msg):
         with self.lock:
             self.coords.append((msg.point.x, msg.point.y))
-            
+
     def get_coords(self):
         with self.lock:
             return str(self.coords)
@@ -385,34 +385,34 @@ class NavGoalToJsonFileSaver:
         with open(self.filepath, "w") as f:
             json.dump({}, f)
         self.topic_sub = rospy.Subscriber("/move_base/goal", MoveBaseActionGoal, callback=self.save_cb)
-    
+
     def save_cb(self, msg):
         with open(self.filepath, "w") as f:
             json.dump(message_converter.convert_ros_message_to_dictionary(msg), f)
-    
+
 
 class PixelData:
     def __init__(self, pixel, hue, x, y, z):
         self.pixel, self.hue, self.x, self.y, self.z = pixel, hue, x, y, z
-        
+
     def __str__(self):
         return str(self.__dict__)
-    
-    
-class SegmentedObject:    
+
+
+class SegmentedObject:
     def __init__(self, uid, pixels, header):
         self.uid, self.pixels, self.header = uid, pixels, header
-        
+
         all_x = [pixel.x for pixel in self.pixels]
         all_y = [pixel.y for pixel in self.pixels]
         all_z = [pixel.z for pixel in self.pixels]
         all_hues = [pixel.hue for pixel in self.pixels]
-        
+
         self.xyz_min = (min(all_x), min(all_y), min(all_z))
         self.xyz_max = (max(all_x), max(all_y), max(all_z))
         self.xyz_avg = (np.average(all_x), np.average(all_y), np.average(all_z))
         self.xyz_med = (np.median(all_x), np.median(all_y), np.median(all_z))
-        
+
         self.top_pixels = [pixel for pixel in self.pixels if self.xyz_max[2] * 0.95 <= pixel.z <= self.xyz_max[2]]
         top_x = [pixel.x for pixel in self.pixels]
         top_y = [pixel.y for pixel in self.pixels]
@@ -425,14 +425,14 @@ class SegmentedObject:
         self.hue_max = max(all_hues)
         self.hue_avg = np.average(all_hues)
         self.hue_med = np.median(all_hues)
-        
+
         self.label = None
-        
+
         self.name = "object_{}_with_hue_{}".format(self.uid, self.hue_med)
-    
+
     def set_label(self, label):
         self.label = label
-    
+
     def xyz_to_pose_stamped(self, xyz):
         pose_stamped = PoseStamped(header=self.header)
         pose_stamped.pose.position.x = xyz[0]
@@ -440,23 +440,23 @@ class SegmentedObject:
         pose_stamped.pose.position.z = xyz[2]
         pose_stamped.pose.orientation = tf.transformations.quaternion_from_euler(0, 0, 0)
         return pose_stamped
-    
+
     @property
     def pose_min(self):
         return xyz_to_pose_stamped(self.xyz_min)
-    
+
     @property
     def pose_max(self):
         return xyz_to_pose_stamped(self.xyz_max)
-    
+
     @property
     def pose_avg(self):
         return xyz_to_pose_stamped(self.xyz_avg)
-    
+
     @property
     def pose_med(self):
         return xyz_to_pose_stamped(self.xyz_med)
-    
+
     @property
     def bb_coords_3d(self):
         return [
@@ -478,11 +478,11 @@ class SegmentedObject:
             (self.xyz_min[0], self.xyz_max[1]),
             (self.xyz_max[0], self.xyz_max[1])
         ]
-    
+
     @property
     def convex_footprint(self):
         return MultiPoint(self.bb_coords_2d).convex_hull
-    
+
     @property
     def circumscribed_radius(self):
         convex_footprint = self.convex_footprint
@@ -493,31 +493,31 @@ class SegmentedObject:
 
 class Scene(with_metaclass(Singleton)):
     FLOOR_MIN_HUE, FLOOR_MAX_HUE = 14, 30
-    
+
     def __init__(self, start_on_init=True, db_scan_eps=4, db_scan_min=10):
         self.db_scan_eps = db_scan_eps
         self.db_scan_min = db_scan_min
-        
+
         self.use_labels = False
-        
+
         self._br = tf.TransformBroadcaster()
         self.tf_listener = tf.TransformListener()
         self.obj_detector = ObjectDetection()
-        
+
         self._cloud_sub = None
-        
+
         self._current_objects = None
         self.lock = threading.Lock()
-        
+
         self.tf_publish_freq = 10.
         self.tf_publishing_thread = threading.Thread(target=self.publish_current_objects_tfs)
         self.tf_publishing_thread.start()
-        
+
         self.objects_region = None
-        
+
         if start_on_init:
             self.start()
-        
+
     def start(self):
         with self.lock:
             self._current_objects = None
@@ -526,13 +526,13 @@ class Scene(with_metaclass(Singleton)):
                 "/hsrb/head_rgbd_sensor/depth_registered/rectified_points",
                 PointCloud2, self._cloud_cb
             )
-    
+
     def pause(self):
         if self._cloud_sub:
             self._cloud_sub.unregister()
             self._cloud_sub = None
-    
-    def wait_for_one_detection(self, timeout=20., sleep_duration=0.0001, use_labels=False):       
+
+    def wait_for_one_detection(self, timeout=20., sleep_duration=0.0001, use_labels=False):
         start_time = time.time()
         self.use_labels = use_labels
         self.start()
@@ -553,7 +553,7 @@ class Scene(with_metaclass(Singleton)):
 
     def _cloud_cb(self, msg, debug=True):
         rospy.loginfo("Cloud Callback called.")
-        
+
         points = ros_numpy.numpify(msg)
 
         image = points['rgb'].view((np.uint8, 4))[..., [2, 1, 0]]
@@ -564,12 +564,12 @@ class Scene(with_metaclass(Singleton)):
         floor_region = (h_image > self.FLOOR_MIN_HUE) & (h_image < self.FLOOR_MAX_HUE)
         wall_and_robot_region = h_image == 0
         objects_region = wall_and_robot_region | floor_region
-        
+
         if debug:
             self.objects_region = objects_region
-                
+
         object_pixels = zip(*np.where(objects_region==False))
-        
+
         if not object_pixels:
             with self.lock:
                 self._current_objects = {}
@@ -581,7 +581,7 @@ class Scene(with_metaclass(Singleton)):
         for uid, pixel in zip(db_scan_result.labels_, object_pixels):
             hue = h_image[pixel[0]][pixel[1]]
             x, y, z = (points[letter][pixel[0]][pixel[1]] for letter in ['x', 'y', 'z'])
-            
+
             self.tf_listener.waitForTransform("map", msg.header.frame_id, rospy.Time(0),rospy.Duration(4.0))
             point=PointStamped()
             point.header.frame_id = msg.header.frame_id
@@ -591,14 +591,14 @@ class Scene(with_metaclass(Singleton)):
             point.point.z=z
             p=self.tf_listener.transformPoint("map", point)
             x_t, y_t, z_t = p.point.x, p.point.y, p.point.z
-            
+
             if uid in uid_to_pixels:
                 uid_to_pixels[uid].append(PixelData(pixel, hue, x_t, y_t, z_t))
             else:
                 uid_to_pixels[uid] = [PixelData(pixel, hue, x_t, y_t, z_t)]
-        
+
         new_objects = {uid: SegmentedObject(uid, pixels, msg.header) for uid, pixels in uid_to_pixels.items()}
-        
+
         if self.use_labels:
             # list(tuple(minx, miny, maxx, maxy, cx, cy, label, confidence))
             detector_output = self.obj_detector.detect(image)
@@ -616,9 +616,9 @@ class Scene(with_metaclass(Singleton)):
                 label_by_distance = sorted(label_by_distance, key=lambda tup: tup[1])
                 if label_by_distance:
                     new_objects[uid].set_label(label_by_distance[0][0])
-            
+
         with self.lock:
-            self._current_objects = new_objects 
+            self._current_objects = new_objects
 #             for new_uid, new_object in new_objects.items():
 #                 for cur_uid, cur_object in self._current_objects.items():
 #                     if cur_object.x
@@ -634,17 +634,17 @@ class Scene(with_metaclass(Singleton)):
                         )
             time.sleep(1./self.tf_publish_freq)
 
-            
+
 class InstructionListener:
     def __init__(self):
         self.instructions = []
         self.instructions_lock = threading.Lock()
         self.instruction_sub = rospy.Subscriber("/message", String, self.instructions_cb)
-        
+
     def instructions_cb(self, msg):
         with self.instructions_lock:
             self.instructions.append(msg.data)
-        
+
     def get_latest_human_side_instruction(self):
         with self.instructions_lock:
             for instruction in reversed(self.instructions):
@@ -655,14 +655,14 @@ class InstructionListener:
                 else:
                     continue
             return None
-        
-        
+
+
 class ObjectDetection(object):
     def __init__(self):
         # Get real-time video stream through opencv
-        LABELS_FILE = 'ycb_tinyyolo/ycb_simu.names'
-        CONFIG_FILE = 'ycb_tinyyolo/yolov3-tiny-ycb_simu_test.cfg'
-        WEIGHTS_FILE = 'ycb_tinyyolo/yolov3-tiny-ycb_simu_best_004.weights'
+        LABELS_FILE = '/workspace/src/wrs_challenge/scripts/ycb_tinyyolo/ycb_simu.names'
+        CONFIG_FILE = '/workspace/src/wrs_challenge/scripts/ycb_tinyyolo/yolov3-tiny-ycb_simu_test.cfg'
+        WEIGHTS_FILE = '/workspace/src/wrs_challenge/scripts/ycb_tinyyolo/yolov3-tiny-ycb_simu_best_004.weights'
         self.CONFIDENCE_THRESHOLD = 0.3
 
         self.H = None
@@ -760,7 +760,7 @@ class ObjectDetection(object):
                 (miny, minx) = (boxes[i][0], boxes[i][1])
                 (maxy, maxx) = (boxes[i][0] + boxes[i][2], boxes[i][1] + boxes[i][3])
                 cx, cy = centroid(np.array([(minx, miny), (maxx, maxy)]))
-                
+
                 tuple_i = (minx, miny, maxx, maxy, cx, cy, self.LABELS[classIDs[i]], confidences[i])
                 data.append(tuple_i)
 
@@ -778,25 +778,25 @@ class MessageParser():
         self.object_darknet = "pending"
 
         self.load_dictionnaries()
-        
+
         rospy.Subscriber("/message", String, self.message)
 
     def get_person(self):
         with self.lock:
             return self.person
-    
+
     def get_object(self):
         with self.lock:
             return self.object
-        
+
     def get_object_num(self):
         with self.lock:
             return self.object_num
-        
+
     def get_object_darknet(self):
         with self.lock:
             return self.object_darknet
-        
+
     # /message Topic callback
     def message(self, msg):
         with self.lock:
@@ -819,34 +819,34 @@ class MessageParser():
 
             if( num > 0 ):
                 self.object_darknet = self.ycb_num_to_darknet_label(num)
-                
+
     # check if there is an object name of the ycb dataset is in the /message request
     def match_object(self, smsg):
 
         match = False
-        
+
         for num, names in self.ycb_number_to_ycb_names.items():
             if( len(names) > 0 ):
                 for name in names:
                     if( name.lower() in smsg.lower() ):
                         return num, name
                     if( name.replace('_',' ').lower() in smsg.lower() ):
-                        return num, name                        
-        
+                        return num, name
+
         return 0, "undefined"
-    
+
     def ycb_num_to_darknet_label(self, num):
         # list out keys and values separately
         key_list = list(self.darknet_label_to_ycb_number.keys())
         val_list = list(self.darknet_label_to_ycb_number.values())
-        
+
         # print key with val num
         try:
             position = val_list.index(num)
-            return key_list[position] 
+            return key_list[position]
         except:
             return "undefined"
-        
+
     def get_deposit(self, darknet_label):
         ycb_num = self.darknet_label_to_ycb_number[darknet_label]
 
@@ -856,7 +856,7 @@ class MessageParser():
             deposit = []
 
         return deposit
-        
+
     # Load conversion dictionnaries
     def load_dictionnaries(self):
 
@@ -946,7 +946,7 @@ class MessageParser():
 
         self.darknet_label_to_ycb_number = \
             {
-                "cracker"               : 3 , 
+                "cracker"               : 3 ,
                 "sugar"                 : 4 ,
                 "pudding"               : 8 ,
                 "gelatin"               : 9 ,
@@ -1059,7 +1059,7 @@ class MessageParser():
                 50:{"Category":"tool", "Deposit": ["Drawer_top", "Drawer_bottom"], "Place":["Drawer"]},
                 51:{"Category":"tool", "Deposit": ["Drawer_top", "Drawer_bottom"], "Place":["Drawer"]},
                 52:{"Category":"tool", "Deposit": ["Drawer_top", "Drawer_bottom"], "Place":["Drawer"]},
-                
+
                 53:{"Category":"shapeitem", "Deposit": ["Drawer_left"], "Place":["Drawer"]},
                 54:{"Category":"shapeitem", "Deposit": ["Drawer_left"], "Place":["Drawer"]},
                 55:{"Category":"shapeitem", "Deposit": ["Drawer_left"], "Place":["Drawer"]},
@@ -1086,8 +1086,8 @@ class MessageParser():
                 76:{"Category":"taskitem", "Deposit": ["Bin_A"], "Place":["Bin_A"]},
 
                 77:{"Category":"taskitem", "Deposit": ["Bin_A"], "Place":["Bin_A"]}
-            }   
-        
+            }
+
 
 ##################################################
 #                     LAYOUT
