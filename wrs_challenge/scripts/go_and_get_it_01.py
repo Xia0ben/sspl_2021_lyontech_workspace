@@ -19,14 +19,14 @@ get_ipython().run_cell_magic(u'script', u'bash', u'pip install scipy scikit-lear
 get_ipython().run_cell_magic(u'script', u'bash --bg', u'rviz -d /workspace/notebooks/data/3_navigation.rviz > /dev/null 2>&1')
 
 
-# In[1]:
+# In[ ]:
 
 
 get_ipython().magic(u'matplotlib inline')
 import matplotlib.pyplot as plt
 
 
-# In[2]:
+# In[ ]:
 
 
 import math
@@ -63,20 +63,20 @@ message_parser = utils.MessageParser()
 rospy.loginfo("Imports done, robot initialized.")
 
 
-# In[3]:
+# In[ ]:
 
 
 utils.NavGoalToJsonFileSaver("saved_msg.json")
 
 
-# In[4]:
+# In[ ]:
 
 
 with open("saved_msg.json") as f:
     print(f.read())
 
 
-# In[5]:
+# In[ ]:
 
 
 beside_bins_goal_str = '{"header": {"stamp": {"secs": 182, "nsecs": 889000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 182, "nsecs": 889000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 0.31022635102272034, "x": 2.4421634674072266, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": -0.0026041090858226357, "w": 0.9999966093021861}}}}}' 
@@ -92,7 +92,7 @@ beside_bins_turn_goal = json_message_converter.convert_json_to_ros_message('move
 robot.move_base_actual_goal(beside_bins_turn_goal)
 
 
-# In[6]:
+# In[ ]:
 
 
 obstacle_avoidance_area_goal_str = '{"header": {"stamp": {"secs": 1218, "nsecs": 867000000}, "frame_id": "", "seq": 21}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 1218, "nsecs": 867000000}, "frame_id": "map", "seq": 21}, "pose": {"position": {"y": 1.7440035343170166, "x": 2.618055582046509, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7167735161966976, "w": 0.697306049363565}}}}}'
@@ -101,19 +101,19 @@ obstacle_avoidance_area_goal = json_message_converter.convert_json_to_ros_messag
 robot.move_base_actual_goal(obstacle_avoidance_area_goal)
 
 
-# In[7]:
+# In[ ]:
 
 
 robot.move_head_tilt(-1)
 
 
-# In[8]:
+# In[ ]:
 
 
 current_objects = scene.wait_for_one_detection()
 
 
-# In[9]:
+# In[ ]:
 
 
 def get_sorted_obj_list_by_distance(cur_objects):
@@ -135,13 +135,13 @@ def get_sorted_obj_list_by_distance(cur_objects):
     return uid_by_distance
 
 
-# In[10]:
+# In[ ]:
 
 
 uid_by_distance = get_sorted_obj_list_by_distance(current_objects)
 
 
-# In[11]:
+# In[ ]:
 
 
 def pick_object_away(obj):    
@@ -233,7 +233,7 @@ def pick_object_away(obj):
     return True
 
 
-# In[12]:
+# In[ ]:
 
 
 # Initial base joints
@@ -256,58 +256,58 @@ if not is_object_moved:
         pick_object_away(obj)
 
 
-# In[13]:
+# In[ ]:
 
 
 robot.move_arm_init()
 robot.close_hand()
 
 
-# In[14]:
+# In[ ]:
 
 
 robot.move_head_tilt(-0.9)
 
 
-# In[15]:
+# In[ ]:
 
 
 enter_room_02_goal_str = '{"header": {"stamp": {"secs": 688, "nsecs": 512000000}, "frame_id": "", "seq": 11}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 688, "nsecs": 512000000}, "frame_id": "map", "seq": 11}, "pose": {"position": {"y": 2.9992051124572754, "x": 2.3737993240356445, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7056854446361143, "w": 0.708525266471655}}}}}'
 enter_room_02_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', enter_room_02_goal_str).goal
 
 
-# In[16]:
+# In[ ]:
 
 
 robot.move_base_actual_goal(enter_room_02_goal)
 
 
-# In[17]:
+# In[ ]:
 
 
 in_front_shelf_goal_str = '{"header": {"stamp": {"secs": 607, "nsecs": 362000000}, "frame_id": "", "seq": 6}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 607, "nsecs": 353000000}, "frame_id": "map", "seq": 6}, "pose": {"position": {"y": 3.7436118125915527, "x": 2.2750515937805176, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.7071067966408575, "w": 0.7071067657322372}}}}}'
 in_front_shelf_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_shelf_goal_str).goal
 
 
-# In[18]:
+# In[ ]:
 
 
 robot.move_base_actual_goal(in_front_shelf_goal)
 
 
-# In[19]:
+# In[ ]:
 
 
 robot.move_head_tilt(-0.2)
 
 
-# In[20]:
+# In[ ]:
 
 
 current_objects = scene.wait_for_one_detection(use_labels=True)
 
 
-# In[21]:
+# In[ ]:
 
 
 def get_chosen_object(cur_objects):
@@ -345,13 +345,13 @@ def get_chosen_object(cur_objects):
     return chosen_object
 
 
-# In[22]:
+# In[ ]:
 
 
 chosen_object = get_chosen_object(current_objects)
 
 
-# In[23]:
+# In[ ]:
 
 
 FIRST_SHELF_LINEAR_JOINT_HEIGHT = 0.21
@@ -459,7 +459,7 @@ def pick_object_from_shelf(obj):
     return True
 
 
-# In[24]:
+# In[ ]:
 
 
 is_pick_success = pick_object_from_shelf(chosen_object)
@@ -469,20 +469,20 @@ if not is_pick_success:
     is_pick_success = pick_object_from_shelf(chosen_object)
 
 
-# In[25]:
+# In[ ]:
 
 
 move_between_humans_goal_str = '{"header": {"stamp": {"secs": 134, "nsecs": 703000000}, "frame_id": "", "seq": 0}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 134, "nsecs": 679000000}, "frame_id": "map", "seq": 0}, "pose": {"position": {"y": 3.857577323913574, "x": 1.0511448383331299, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999999998344654, "w": -1.819530991026369e-05}}}}}'
 move_between_humans_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', move_between_humans_goal_str).goal
 
 
-# In[26]:
+# In[ ]:
 
 
 robot.move_base_actual_goal(move_between_humans_goal)
 
 
-# In[27]:
+# In[ ]:
 
 
 latest_human_side_instruction = message_parser.get_person()
@@ -500,29 +500,29 @@ else:
     robot.move_base_actual_goal(in_front_human_left_goal)
 
 
-# In[28]:
+# In[ ]:
 
 
 robot.move_arm_neutral()
 
 
-# In[29]:
+# In[ ]:
 
 
 # To save points published in Rviz, simply use the following commands
 
 
-# In[30]:
+# In[ ]:
 
 
-# saver = PointsSaver()
+saver = utils.PointsSaver()
 
 
 # In[ ]:
 
 
-# coords = saver.get_coords()
-# coords
+coords = saver.get_coords()
+coords
 
 
 # In[ ]:
@@ -547,29 +547,4 @@ robot.move_arm_neutral()
 #     p=robot.tf_listener.transformPoint("base_link", point)
 #     transformed_coords.append((p.point.x, p.point.y))
 # transformed_coords
-
-
-# In[ ]:
-
-
-robot.open_hand()
-
-
-# In[ ]:
-
-
-robot.gripper.get_current_joint_values()
-
-
-# In[ ]:
-
-
-import numpy as np
-
-
-
-# In[ ]:
-
-
-
 
