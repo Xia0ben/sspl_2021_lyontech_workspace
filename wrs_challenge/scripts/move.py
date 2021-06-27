@@ -176,9 +176,10 @@ def pick_object_away(obj):
 
 
     joints_for_lower_arm_picking_from_ground = robot.arm.get_current_joint_values()
-    z_diff = 0. if joints_for_lower_arm_picking_from_ground[0] - z_diff < 0. else z_diff
-    joints_for_lower_arm_picking_from_ground = robot.arm.get_current_joint_values()
-    joints_for_lower_arm_picking_from_ground[0] -= z_diff
+    if joints_for_lower_arm_picking_from_ground[0] - z_diff > 0.:
+        joints_for_lower_arm_picking_from_ground[0] -= z_diff
+    else:
+        joints_for_lower_arm_picking_from_ground[0] = 0.
     robot.arm.set_joint_value_target(joints_for_lower_arm_picking_from_ground)
     robot.arm.go()
 
