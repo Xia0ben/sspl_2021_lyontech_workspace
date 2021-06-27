@@ -740,7 +740,6 @@ def get_chosen_object(cur_objects):
 
     if not chosen_object:
         rospy.logwarn("No object was able to be chosen. Stopping robot.")
-        sys.exit(0)
 
     return chosen_object
 
