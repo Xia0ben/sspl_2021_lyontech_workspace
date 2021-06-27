@@ -413,8 +413,8 @@ params = area_params.pop(0)
 
 while True:
     duration = (rospy.Time.now() - start_time).secs
-        if duration > 13 * 60:
-            break
+    if duration > 13 * 60:
+        break
 
     rospy.loginfo("Moving to observation point.")
     robot.move_base_actual_goal(params["observation_goal"])
