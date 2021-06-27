@@ -49,7 +49,7 @@ while rospy.Time.now() == rospy.Time():
     rospy.loginfo("Simulation paused/stalled")
     time.sleep(0.1)
 rospy.loginfo("Simulation started")
-    
+
 from rospy_message_converter import json_message_converter
 
 
@@ -139,7 +139,7 @@ def get_chosen_object(cur_objects, previous_convex_footprints, pose_z_min, pose_
     uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
     if uid_by_distance:
         chosen_object = cur_objects[uid_by_distance[0][0]]
-        
+
     return chosen_object, uid_by_distance
 
 
@@ -149,7 +149,7 @@ def get_chosen_object(cur_objects, previous_convex_footprints, pose_z_min, pose_
 def pick_object_away(obj, joints_for_hovering, lowest_arm_height):
     # Move head to prevent arm movement failures
     robot.move_head_tilt(0.)
-    
+
     # Save joints for initial pose
     joints_for_going_back_to_init_pose = robot.base.get_current_joint_values()
 
@@ -195,7 +195,7 @@ def pick_object_away(obj, joints_for_hovering, lowest_arm_height):
 
     robot.base.set_joint_value_target(joints_for_catching_to_object)
     robot.base.go()
-    
+
     # Lower arm
     robot.tf_listener.waitForTransform("map", "hand_palm_link", rospy.Time(0),rospy.Duration(4.0))
     transform = robot.tf_listener.lookupTransform("map", "hand_palm_link", rospy.Time(0))
@@ -211,10 +211,10 @@ def pick_object_away(obj, joints_for_hovering, lowest_arm_height):
     print("joints_for_lower_arm: {}".format(joints_for_lower_arm))
     robot.arm.set_joint_value_target(joints_for_lower_arm)
     robot.arm.go()
-    
+
     # Pick
     robot.close_hand()
-    
+
     # Move arm up
     robot.arm.set_joint_value_target(joints_for_hovering)
     robot.arm.go()
@@ -225,7 +225,7 @@ def pick_object_away(obj, joints_for_hovering, lowest_arm_height):
     joints_for_going_back_to_init_pose_trans[1] = joints_for_going_back_to_init_pose[1]
     robot.base.set_joint_value_target(joints_for_going_back_to_init_pose_trans)
     robot.base.go()
-    
+
     joints_for_going_back_to_init_pose_rot = robot.base.get_current_joint_values()
     joints_for_going_back_to_init_pose_rot[2] = joints_for_going_back_to_init_pose[2]
     robot.base.set_joint_value_target(joints_for_going_back_to_init_pose_rot)
@@ -260,15 +260,15 @@ def map_xy_to_frame_xy(coord, target_frame):
 def put_object_down_at_place(obj, goal_point, height):
     # Move head to prevent arm movement failures
     robot.move_head_tilt(0.)
-    
+
     # Save joints for initial pose
     joints_for_going_back_to_init_pose = robot.base.get_current_joint_values()
-    
-    # Put arm forward    
+
+    # Put arm forward
     joints_for_placing_arm_above = [height] + [math.radians(a) for a in [-90., 0., -90., 0., 0.]]
     robot.arm.set_joint_value_target(joints_for_placing_arm_above)
     robot.arm.go()
-    
+
 
     # Compute angle for robot base to face arm parallel direction between base_link and object
     o_x, o_y = map_xy_to_frame_xy(goal_point, "base_link")
@@ -279,7 +279,7 @@ def put_object_down_at_place(obj, goal_point, height):
 
     robot.base.set_joint_value_target(joints_for_facing_object)
     robot.base.go()
-    
+
     # Compute translation for robot base to actually face the object
     a_x, a_y = robot.get_diff_between("base_link", "arm_flex_link")
 
@@ -296,7 +296,7 @@ def put_object_down_at_place(obj, goal_point, height):
 
     robot.base.set_joint_value_target(joints_for_going_to_object)
     robot.base.go()
-    
+
     # Compute translation for robot base to get the object and get it
     oo_x, oo_y = map_xy_to_frame_xy(goal_point, "odom")
     ho_x, ho_y = robot.get_diff_between("odom", "hand_palm_link")
@@ -307,7 +307,7 @@ def put_object_down_at_place(obj, goal_point, height):
 
     robot.base.set_joint_value_target(joints_for_catching_to_object)
     robot.base.go()
-    
+
     # # Lower arm if necessary
     # robot.tf_listener.waitForTransform("map", "hand_palm_link", rospy.Time(0),rospy.Duration(4.0))
     # transform = robot.tf_listener.lookupTransform("map", "hand_palm_link", rospy.Time(0))
@@ -319,15 +319,15 @@ def put_object_down_at_place(obj, goal_point, height):
     # joints_for_lower_arm_picking_from_ground[0] -= z_diff
     # robot.arm.set_joint_value_target(joints_for_lower_arm_picking_from_ground)
     # robot.arm.go()
-    
+
     # Place
     robot.open_hand()
     robot.shake_wrist()
-    
+
     # Move arm up
     robot.arm.set_joint_value_target(joints_for_placing_arm_above)
     robot.arm.go()
-    
+
     # Close hand, the object should long have fallen
     robot.close_hand()
 
@@ -358,7 +358,7 @@ def choose_object_destination(obj):
     deposit_area_names = []
     if obj.label:
         deposit_area_names = message_parser.get_deposit(obj.label)
-    
+
     if deposit_area_names:
         if "Bin_A" in deposit_area_names:
             return utils.IN_FRONT_BINS_GOAL, utils.BIN_A_1[0], utils.HEIGHT_ABOVE_BINS
@@ -375,10 +375,10 @@ def choose_object_destination(obj):
                     return utils.IN_FRONT_DEPOSIT_TABLE_GOAL, utils.TRAY_A_1[0], utils.HEIGHT_ABOVE_TRAYS
                 else:
                     return utils.IN_FRONT_DEPOSIT_TABLE_GOAL, utils.TRAY_B_1[0], utils.HEIGHT_ABOVE_TRAYS
-    
+
     # By default, everything goes to the BIN_B (black)
     return utils.IN_FRONT_BINS_GOAL, utils.BIN_B_1[0], utils.HEIGHT_ABOVE_BINS
-    
+
 
 
 # In[6]:
@@ -386,6 +386,7 @@ def choose_object_destination(obj):
 
 time_watchdog_thread = threading.Thread(target=utils.time_watchdog, args={"max_minutes": 19, "max_seconds": 50})
 time_watchdog_thread.start()
+start_time = rospy.Time.now()
 
 previous_convex_footprints = []
 
@@ -430,7 +431,11 @@ area_params = [
 
 params = area_params.pop(0)
 
-while True: 
+while True:
+    duration = (rospy.Time.now() - start_time).secs
+        if duration > 13 * 60:
+            break
+
     rospy.loginfo("Moving to observation point.")
     robot.move_base_actual_goal(params["observation_goal"])
     rospy.loginfo("Moved to observation point.")
@@ -454,7 +459,7 @@ while True:
         else:
             rospy.loginfo("Object {} - {}: SUCCESSFULLY PICKED.".format(obj.name, (obj.label if obj.label else "NO LABEL")))
             robot.move_head_tilt(0.)
-            
+
             nav_goal, goal_point, arm_height = choose_object_destination(obj)
             rospy.loginfo("Object {} - {}: MOVING TO {}, GOAL POINT {}, ARM HEIGHT {}.".format(
                 obj.name, (obj.label if obj.label else "NO LABEL"), str(nav_goal), str(goal_point), str(arm_height)
@@ -465,7 +470,7 @@ while True:
 
             put_object_down_at_place(obj, goal_point, arm_height)
             rospy.loginfo("Object {} - {}: PUT DOWN AT {}.".format(obj.name, (obj.label if obj.label else "NO LABEL"), str(goal_point)))
-            
+
             if goal_point == utils.TRAY_A_1[0]:
                 tray_a_counter += 1
             elif goal_point == utils.TRAY_B_1[0]:
@@ -539,7 +544,7 @@ def get_sorted_obj_list_by_distance(cur_objects):
     uid_by_distance = []
     uid_to_convex_footprint = {}
     for uid, obj in cur_objects.items():
-        convex_footprint = MultiPoint(obj.bb_coords_2d).convex_hull    
+        convex_footprint = MultiPoint(obj.bb_coords_2d).convex_hull
         if convex_footprint.intersects(utils.TABOO_AREA_POLYGON):
             min_distance = float("inf")
             for coord in obj.bb_coords_2d:
@@ -553,7 +558,7 @@ def get_sorted_obj_list_by_distance(cur_objects):
 # In[10]:
 
 
-def pick_object_away(obj):    
+def pick_object_away(obj):
     # Compute angle for robot base to face arm parallel direction between base_link and object
     o_x, o_y = robot.get_diff_between("base_link", obj.name)
     yaw = math.pi/2. - math.atan2(o_x, o_y)
@@ -563,13 +568,13 @@ def pick_object_away(obj):
 
     robot.base.set_joint_value_target(joints_for_facing_object)
     robot.base.go()
-    
+
     # Set to picking pose
     joints_for_arm_picking_from_ground = [0.1] + [math.radians(a) for a in [-107., 0., -73., 0., 0.]]
     robot.arm.set_joint_value_target(joints_for_arm_picking_from_ground)
     robot.arm.go()
     robot.open_hand()
-    
+
     # Compute translation for robot base to actually face the object
     a_x, a_y = robot.get_diff_between("base_link", "arm_flex_link")
 
@@ -586,7 +591,7 @@ def pick_object_away(obj):
 
     robot.base.set_joint_value_target(joints_for_going_to_object)
     robot.base.go()
-    
+
     # Compute translation for robot base to get the object and get it
     oo_x, oo_y = robot.get_diff_between("odom", obj.name)
     ho_x, ho_y = robot.get_diff_between("odom", "hand_palm_link")
@@ -597,48 +602,48 @@ def pick_object_away(obj):
 
     robot.base.set_joint_value_target(joints_for_catching_to_object)
     robot.base.go()
-    
+
     # Lower arm
     joints_for_lower_arm_picking_from_ground = robot.arm.get_current_joint_values()
     joints_for_lower_arm_picking_from_ground[0] = 0.
     robot.arm.set_joint_value_target(joints_for_lower_arm_picking_from_ground)
     robot.arm.go()
-    
+
     # Pick
     robot.close_hand()
-    
+
     # Move arm up
     robot.arm.set_joint_value_target(joints_for_arm_picking_from_ground)
     robot.arm.go()
-    
+
     # Keep it close to your heart
     robot.move_arm_init()
-    
+
     if robot.is_hand_fully_closed():
         return False
-    
+
     # Turn 180deg
     joints_turn_180_deg = robot.base.get_current_joint_values()
     joints_turn_180_deg[2] -= math.radians(180)
     robot.base.set_joint_value_target(joints_turn_180_deg)
     robot.base.go()
-    
+
     # Deliver
     robot.arm.set_joint_value_target(joints_for_arm_picking_from_ground)
     robot.arm.go()
     robot.open_hand()
     robot.shake_wrist()
-    
+
     # Reset arm pose
     robot.move_arm_init()
     robot.close_hand()
-    
+
     # Turn 180deg again
     joints_turn_180_deg = robot.base.get_current_joint_values()
     joints_turn_180_deg[2] += math.radians(180)
     robot.base.set_joint_value_target(joints_turn_180_deg)
     robot.base.go()
-    
+
     return True
 
 
@@ -756,7 +761,7 @@ def get_chosen_object(cur_objects):
     if not chosen_object:
         rospy.logwarn("No object was able to be chosen. Stopping robot.")
         sys.exit(0)
-        
+
     return chosen_object
 
 
@@ -776,16 +781,16 @@ SECOND_SHELF_HEIGHT = 0.78
 def pick_object_from_shelf(obj):
     # Identify related shelf
     linear_joint_height = SECOND_SHELF_LINEAR_JOINT_HEIGHT if (obj.xyz_med[2] >= SECOND_SHELF_HEIGHT) else FIRST_SHELF_LINEAR_JOINT_HEIGHT
-    
+
     # Save joints for pose in front of shelf
     joints_for_going_back_in_front_shelf = robot.base.get_current_joint_values()
-    
+
     # Open hand and go to straight arm joints
     robot.open_hand()
     straight_arm = [linear_joint_height] + [math.radians(a) for a in [-90., 0., 0., 0., 0.]]
     robot.arm.set_joint_value_target(straight_arm)
     robot.arm.go()
-    
+
     # Move parallel direction from base link to object
     diff_x, diff_y = robot.get_diff_between("base_link", obj.name)
     yaw = math.pi/2. - math.atan2(diff_x, diff_y)
@@ -794,7 +799,7 @@ def pick_object_from_shelf(obj):
     joints_for_facing_object[2] += yaw
     robot.base.set_joint_value_target(joints_for_facing_object)
     robot.base.go()
-    
+
     # Translate in front of object
     a_x, a_y = robot.get_diff_between("base_link", "arm_flex_link")
     robot.tf_listener.waitForTransform("/base_link", "/odom", rospy.Time(0),rospy.Duration(4.0))
@@ -808,7 +813,7 @@ def pick_object_from_shelf(obj):
     joints_for_going_to_object[1] = p.point.x
     robot.base.set_joint_value_target(joints_for_going_to_object)
     robot.base.go()
-    
+
     # Translate to object
 #     obj_o_x, obj_o_y = robot.get_diff_between("odom", obj.name)
 #     print("obj_o_x, obj_o_y: {}, {}".format(obj_o_x, obj_o_y))
@@ -824,8 +829,8 @@ def pick_object_from_shelf(obj):
             min_distance_to_robot = dist
             nearest_o_x, nearest_o_y, nearest_o_z = x, y, z
 #     print("nearest_o_x, nearest_o_y, nearest_o_z: {}, {}".format(nearest_o_x, nearest_o_y, nearest_o_z))
-            
-    
+
+
     robot.tf_listener.waitForTransform("/odom", "/map", rospy.Time(0),rospy.Duration(4.0))
     point=PointStamped()
     point.header.frame_id = "map"
@@ -837,23 +842,23 @@ def pick_object_from_shelf(obj):
     obj_o_x, obj_o_y = p.point.x, p.point.y
 #     print("obj_o_x, obj_o_y: {}, {}".format(obj_o_x, obj_o_y))
     ######
-    
+
     ho_x, ho_y = robot.get_diff_between("odom", "hand_palm_link")
     joints_for_catching_to_object = robot.base.get_current_joint_values()
     joints_for_catching_to_object[0] += obj_o_y - ho_y
     joints_for_catching_to_object[1] += obj_o_x - ho_x
     robot.base.set_joint_value_target(joints_for_catching_to_object)
     robot.base.go()
-    
+
     # Pick it
     robot.close_hand()
-    
+
     # Lift it slightly
     joints_for_lifting_object = robot.arm.get_current_joint_values()
     joints_for_lifting_object[0] += 0.01
     robot.arm.set_joint_value_target(joints_for_lifting_object)
     robot.arm.go()
-    
+
     # Move back in front of shelf
     joints_for_going_back_in_front_shelf_trans = robot.base.get_current_joint_values()
     joints_for_going_back_in_front_shelf_trans[0] = joints_for_going_back_in_front_shelf[0]
@@ -864,13 +869,13 @@ def pick_object_from_shelf(obj):
     joints_for_going_back_in_front_shelf_rot[2] = joints_for_going_back_in_front_shelf[2]
     robot.base.set_joint_value_target(joints_for_going_back_in_front_shelf_rot)
     robot.base.go()
-    
+
     # Keep object close to your heart
     robot.move_arm_init()
-    
+
     if robot.is_hand_fully_closed():
         return False
-    
+
     return True
 
 
@@ -908,7 +913,7 @@ if latest_human_side_instruction == "right":
     in_front_human_right_goal_str = '{"header": {"stamp": {"secs": 176, "nsecs": 562000000}, "frame_id": "", "seq": 1}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 176, "nsecs": 562000000}, "frame_id": "map", "seq": 1}, "pose": {"position": {"y": 3.909142017364502, "x": 0.40349310636520386, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999394114821857, "w": -0.011007877391217903}}}}}'
     in_front_human_right_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_right_goal_str).goal
     robot.move_base_actual_goal(in_front_human_right_goal)
-    
+
 else:
     in_front_human_left_goal_str = '{"header": {"stamp": {"secs": 209, "nsecs": 613000000}, "frame_id": "", "seq": 2}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 209, "nsecs": 613000000}, "frame_id": "map", "seq": 2}, "pose": {"position": {"y": 2.8555641174316406, "x": 0.5514420866966248, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.9999989738094117, "w": -0.0014326130403864133}}}}}'
     in_front_human_left_goal = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_human_left_goal_str).goal
@@ -929,7 +934,3 @@ os._exit(1)
 
 
 # In[ ]:
-
-
-
-
