@@ -37,6 +37,8 @@ import tf
 
 import sys
 
+import threading
+
 import rospy
 rospy.init_node("go_and_get_it_01")
 
@@ -47,7 +49,7 @@ while rospy.Time.now() == rospy.Time():
     rospy.loginfo("Simulation paused/stalled")
     time.sleep(0.1)
 rospy.loginfo("Simulation started")
-    
+
 from rospy_message_converter import json_message_converter
 
 
@@ -137,7 +139,7 @@ def get_chosen_object(cur_objects, previous_convex_footprints, pose_z_min, pose_
     uid_by_distance = sorted(uid_by_distance, key=lambda tup: tup[1])
     if uid_by_distance:
         chosen_object = cur_objects[uid_by_distance[0][0]]
-        
+
     return chosen_object, uid_by_distance
 
 
@@ -147,7 +149,7 @@ def get_chosen_object(cur_objects, previous_convex_footprints, pose_z_min, pose_
 def pick_object_away(obj, joints_for_hovering, lowest_arm_height):
     # Move head to prevent arm movement failures
     robot.move_head_tilt(0.)
-    
+
     # Save joints for initial pose
     joints_for_going_back_to_init_pose = robot.base.get_current_joint_values()
 
@@ -193,7 +195,7 @@ def pick_object_away(obj, joints_for_hovering, lowest_arm_height):
 
     robot.base.set_joint_value_target(joints_for_catching_to_object)
     robot.base.go()
-    
+
     # Lower arm
     robot.tf_listener.waitForTransform("map", "hand_palm_link", rospy.Time(0),rospy.Duration(4.0))
     transform = robot.tf_listener.lookupTransform("map", "hand_palm_link", rospy.Time(0))
@@ -209,10 +211,10 @@ def pick_object_away(obj, joints_for_hovering, lowest_arm_height):
     print("joints_for_lower_arm: {}".format(joints_for_lower_arm))
     robot.arm.set_joint_value_target(joints_for_lower_arm)
     robot.arm.go()
-    
+
     # Pick
     robot.close_hand()
-    
+
     # Move arm up
     robot.arm.set_joint_value_target(joints_for_hovering)
     robot.arm.go()
@@ -223,7 +225,7 @@ def pick_object_away(obj, joints_for_hovering, lowest_arm_height):
     joints_for_going_back_to_init_pose_trans[1] = joints_for_going_back_to_init_pose[1]
     robot.base.set_joint_value_target(joints_for_going_back_to_init_pose_trans)
     robot.base.go()
-    
+
     joints_for_going_back_to_init_pose_rot = robot.base.get_current_joint_values()
     joints_for_going_back_to_init_pose_rot[2] = joints_for_going_back_to_init_pose[2]
     robot.base.set_joint_value_target(joints_for_going_back_to_init_pose_rot)
@@ -258,15 +260,15 @@ def map_xy_to_frame_xy(coord, target_frame):
 def put_object_down_at_place(obj, goal_point, height):
     # Move head to prevent arm movement failures
     robot.move_head_tilt(0.)
-    
+
     # Save joints for initial pose
     joints_for_going_back_to_init_pose = robot.base.get_current_joint_values()
-    
-    # Put arm forward    
+
+    # Put arm forward
     joints_for_placing_arm_above = [height] + [math.radians(a) for a in [-90., 0., -90., 0., 0.]]
     robot.arm.set_joint_value_target(joints_for_placing_arm_above)
     robot.arm.go()
-    
+
 
     # Compute angle for robot base to face arm parallel direction between base_link and object
     o_x, o_y = map_xy_to_frame_xy(goal_point, "base_link")
@@ -277,7 +279,7 @@ def put_object_down_at_place(obj, goal_point, height):
 
     robot.base.set_joint_value_target(joints_for_facing_object)
     robot.base.go()
-    
+
     # Compute translation for robot base to actually face the object
     a_x, a_y = robot.get_diff_between("base_link", "arm_flex_link")
 
@@ -294,7 +296,7 @@ def put_object_down_at_place(obj, goal_point, height):
 
     robot.base.set_joint_value_target(joints_for_going_to_object)
     robot.base.go()
-    
+
     # Compute translation for robot base to get the object and get it
     oo_x, oo_y = map_xy_to_frame_xy(goal_point, "odom")
     ho_x, ho_y = robot.get_diff_between("odom", "hand_palm_link")
@@ -305,7 +307,7 @@ def put_object_down_at_place(obj, goal_point, height):
 
     robot.base.set_joint_value_target(joints_for_catching_to_object)
     robot.base.go()
-    
+
     # # Lower arm if necessary
     # robot.tf_listener.waitForTransform("map", "hand_palm_link", rospy.Time(0),rospy.Duration(4.0))
     # transform = robot.tf_listener.lookupTransform("map", "hand_palm_link", rospy.Time(0))
@@ -317,15 +319,15 @@ def put_object_down_at_place(obj, goal_point, height):
     # joints_for_lower_arm_picking_from_ground[0] -= z_diff
     # robot.arm.set_joint_value_target(joints_for_lower_arm_picking_from_ground)
     # robot.arm.go()
-    
+
     # Place
     robot.open_hand()
     robot.shake_wrist()
-    
+
     # Move arm up
     robot.arm.set_joint_value_target(joints_for_placing_arm_above)
     robot.arm.go()
-    
+
     # Close hand, the object should long have fallen
     robot.close_hand()
 
@@ -356,7 +358,7 @@ def choose_object_destination(obj):
     deposit_area_names = []
     if obj.label:
         deposit_area_names = message_parser.get_deposit(obj.label)
-    
+
     if deposit_area_names:
         if "Bin_A" in deposit_area_names:
             return utils.IN_FRONT_BINS_GOAL, utils.BIN_A_1[0], utils.HEIGHT_ABOVE_BINS
@@ -373,10 +375,10 @@ def choose_object_destination(obj):
                     return utils.IN_FRONT_DEPOSIT_TABLE_GOAL, utils.TRAY_A_1[0], utils.HEIGHT_ABOVE_TRAYS
                 else:
                     return utils.IN_FRONT_DEPOSIT_TABLE_GOAL, utils.TRAY_B_1[0], utils.HEIGHT_ABOVE_TRAYS
-    
+
     # By default, everything goes to the BIN_B (black)
     return utils.IN_FRONT_BINS_GOAL, utils.BIN_B_1[0], utils.HEIGHT_ABOVE_BINS
-    
+
 
 
 # In[ ]:
@@ -428,7 +430,7 @@ area_params = [
 
 params = area_params.pop(0)
 
-while True: 
+while True:
     rospy.loginfo("Moving to observation point.")
     robot.move_base_actual_goal(params["observation_goal"])
     rospy.loginfo("Moved to observation point.")
@@ -452,7 +454,7 @@ while True:
         else:
             rospy.loginfo("Object {} - {}: SUCCESSFULLY PICKED.".format(obj.name, (obj.label if obj.label else "NO LABEL")))
             robot.move_head_tilt(0.)
-            
+
             nav_goal, goal_point, arm_height = choose_object_destination(obj)
             rospy.loginfo("Object {} - {}: MOVING TO {}, GOAL POINT {}, ARM HEIGHT {}.".format(
                 obj.name, (obj.label if obj.label else "NO LABEL"), str(nav_goal), str(goal_point), str(arm_height)
@@ -463,7 +465,7 @@ while True:
 
             put_object_down_at_place(obj, goal_point, arm_height)
             rospy.loginfo("Object {} - {}: PUT DOWN AT {}.".format(obj.name, (obj.label if obj.label else "NO LABEL"), str(goal_point)))
-            
+
             if goal_point == utils.TRAY_A_1[0]:
                 tray_a_counter += 1
             elif goal_point == utils.TRAY_B_1[0]:
@@ -479,7 +481,3 @@ os._exit(1)
 
 
 # In[ ]:
-
-
-
-
