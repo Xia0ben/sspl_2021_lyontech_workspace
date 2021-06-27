@@ -287,6 +287,7 @@ def put_object_down_at_place(obj, goal_point, height):
 
     # Place
     robot.open_hand()
+    robot.shake_wrist()
 
     # Move arm up
     robot.arm.set_joint_value_target(joints_for_placing_arm_above)
