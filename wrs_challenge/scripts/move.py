@@ -174,11 +174,13 @@ def pick_object_away(obj):
     transform = robot.tf_listener.lookupTransform("map", "hand_palm_link", rospy.Time(0))
     z_diff = transform[0][2] - obj.xyz_max[2]
 
+
     joints_for_lower_arm_picking_from_ground = robot.arm.get_current_joint_values()
-    if joints_for_lower_arm_picking_from_ground[0] - z_diff < 0.:
-        joints_for_lower_arm_picking_from_ground[0] -= z_diff
-    else:
-        joints_for_lower_arm_picking_from_ground[0] = 0.
+    z_diff = 0. if joints_for_lower_arm_picking_from_ground[0] - z_diff < 0. else z_diff
+    joints_for_lower_arm_picking_from_ground = robot.arm.get_current_joint_values()
+    joints_for_lower_arm_picking_from_ground[0] -= z_diff
+    robot.arm.set_joint_value_target(joints_for_lower_arm_picking_from_ground)
+    robot.arm.go()
 
     robot.arm.set_joint_value_target(joints_for_lower_arm_picking_from_ground)
     robot.arm.go()
