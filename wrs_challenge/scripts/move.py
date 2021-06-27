@@ -364,8 +364,8 @@ def choose_object_destination(obj):
 # In[6]:
 
 
-time_watchdog_thread = threading.Thread(target=utils.time_watchdog, kwargs={"max_minutes": 19, "max_seconds": 50})
-time_watchdog_thread.start()
+# time_watchdog_thread = threading.Thread(target=utils.time_watchdog, kwargs={"max_minutes": 19, "max_seconds": 50})
+# time_watchdog_thread.start()
 start_time = rospy.Time.now()
 
 previous_convex_footprints = []
@@ -740,6 +740,7 @@ def get_chosen_object(cur_objects):
 
     if not chosen_object:
         rospy.logwarn("No object was able to be chosen. Stopping robot.")
+        sys.exit(0)
 
     return chosen_object
 
