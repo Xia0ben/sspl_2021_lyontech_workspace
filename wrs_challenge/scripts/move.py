@@ -349,9 +349,17 @@ def choose_object_destination(obj):
 utils.TimeWatchDogThread().start()
 
 previous_convex_footprints = []
+
+observation_goals = [
+    utils.IN_FRONT_LARGE_TABLE_GROUND_OBJECTS_GOAL,
+    utils.IN_FRONT_SMALL_TABLE_GROUND_OBJECTS_GOAL
+]
+
+current_observation_goal = observation_goals.pop(0)
+
 while True:
     rospy.loginfo("Moving to observation point.")
-    robot.move_base_actual_goal(utils.IN_FRONT_LARGE_TABLE_GROUND_OBJECTS_GOAL)
+    robot.move_base_actual_goal(current_observation_goal)
     rospy.loginfo("Moved to observation point.")
     robot.move_head_tilt(-0.85)
     rospy.loginfo("Observing...")
@@ -391,7 +399,11 @@ while True:
                 tray_b_counter += 1
     else:
         rospy.loginfo("No object to move could be found.")
-        break
+        try:
+            current_observation_goal = observation_goals.pop(0)
+        except Exception:
+            break
 
+os._exit(1)
 
 # In[ ]:

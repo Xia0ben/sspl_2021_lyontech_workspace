@@ -1204,6 +1204,9 @@ HEIGHT_ABOVE_CONTAINER_A = 0.62
 in_front_large_table_ground_objects_goal_str = '{"header": {"stamp": {"secs": 824, "nsecs": 610000000}, "frame_id": "", "seq": 0}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 824, "nsecs": 598000000}, "frame_id": "map", "seq": 0}, "pose": {"position": {"y": 0.24864110350608826, "x": 1.026589274406433, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.70455870740194, "w": 0.7096457058449008}}}}}'
 IN_FRONT_LARGE_TABLE_GROUND_OBJECTS_GOAL = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_large_table_ground_objects_goal_str).goal
 
+in_front_small_table_ground_objects_goal_str = '{"header": {"stamp": {"secs": 24, "nsecs": 591000000}, "frame_id": "", "seq": 2}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 24, "nsecs": 579000000}, "frame_id": "map", "seq": 2}, "pose": {"position": {"y": 0.3704327344894409, "x": 0.348357617855072, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": 0.718415368492299, "w": 0.6956143747178275}}}}}'
+IN_FRONT_SMALL_TABLE_GROUND_OBJECTS_GOAL = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_small_table_ground_objects_goal_str).goal
+
 in_front_deposit_table_goal_str = '{"header": {"stamp": {"secs": 972, "nsecs": 594000000}, "frame_id": "", "seq": 4}, "goal_id": {"stamp": {"secs": 0, "nsecs": 0}, "id": ""}, "goal": {"target_pose": {"header": {"stamp": {"secs": 972, "nsecs": 594000000}, "frame_id": "map", "seq": 0}, "pose": {"position": {"y": 0.4221145510673523, "x": 1.5025765895843506, "z": 0.0}, "orientation": {"y": 0.0, "x": 0.0, "z": -0.7071067966408575, "w": 0.7071067657322372}}}}}'
 IN_FRONT_DEPOSIT_TABLE_GOAL = json_message_converter.convert_json_to_ros_message('move_base_msgs/MoveBaseActionGoal', in_front_deposit_table_goal_str).goal
 
