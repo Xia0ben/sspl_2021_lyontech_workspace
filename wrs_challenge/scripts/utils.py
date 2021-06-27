@@ -131,7 +131,7 @@ def centroid(arr):
     return sum_x/length, sum_y/length
 
 
-def time_watchdog(self, max_minutes=14, max_seconds=50):
+def time_watchdog(max_minutes=14, max_seconds=50):
     start_time = rospy.Time.now()
     max_duration = max_minutes * 60 + max_seconds
     rospy.loginfo(

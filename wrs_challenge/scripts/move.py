@@ -364,7 +364,7 @@ def choose_object_destination(obj):
 # In[6]:
 
 
-time_watchdog_thread = threading.Thread(target=utils.time_watchdog, args={"max_minutes": 19, "max_seconds": 50})
+time_watchdog_thread = threading.Thread(target=utils.time_watchdog, kwargs={"max_minutes": 19, "max_seconds": 50})
 time_watchdog_thread.start()
 start_time = rospy.Time.now()
 
